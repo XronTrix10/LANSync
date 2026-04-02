@@ -63,6 +63,16 @@ export default function App() {
     dropStateRef.current = { activeDeviceIP, currentPath, devices };
   }, [activeDeviceIP, currentPath, devices]);
 
+  // FIX: Moved getBaseDirName above useEffect and 
+  // upgraded the regex to aggressively squash ALL backslashes.
+  const getBaseDirName = (path: string) => {
+    if (!path) return "/";
+    const normPath = path.replace(/[\\/]+/g, "/");
+    if (normPath === "/" || normPath === "") return "/";
+    const segments = normPath.split("/").filter(Boolean);
+    return segments.length > 0 ? segments[segments.length - 1] : "/";
+  };
+
   // ── Init ──────────────────────────────────────────────────────────────────
   useEffect(() => {
     const savedDevices = localStorage.getItem("lansync_recent_devices");
@@ -133,14 +143,11 @@ export default function App() {
           setCurrentPath(result.path);
           setParentPath(result.parent);
 
-          const baseDir =
-            currentPath === "/"
-              ? "/"
-              : currentPath.split("/").filter(Boolean).pop();
+          // FIX: Uses the bulletproof getBaseDirName logic
           showToast(
             `Successfully uploaded ${paths.length} file(s)`,
             "success",
-            baseDir,
+            getBaseDirName(currentPath),
           );
         } catch (err: any) {
           showToast(
@@ -216,12 +223,6 @@ export default function App() {
   const getActivePort = () => {
     const device = devices.find((d) => d.ip === activeDeviceIP);
     return device?.port || "34931";
-  };
-
-  const getBaseDirName = (path: string) => {
-    if (!path || path === "/") return "/";
-    const segments = path.split("/").filter(Boolean);
-    return segments.length > 0 ? segments[segments.length - 1] : "/";
   };
 
   // ── Device management ─────────────────────────────────────────────────────
