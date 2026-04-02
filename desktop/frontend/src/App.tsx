@@ -1,5 +1,5 @@
 import { ShieldAlert } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
   AcceptConnection,
   Disconnect,
@@ -16,7 +16,7 @@ import {
   RequestConnection,
   SelectDirectory,
   SelectFiles,
-  GetSessionToken, // Make sure this is exported from Wails!
+  GetSessionToken,
 } from "../wailsjs/go/main/App";
 import { EventsOn, EventsOff } from "../wailsjs/runtime/runtime";
 
@@ -39,7 +39,6 @@ export default function App() {
   const [loading, setLoading] = useState<boolean>(false);
   const [uploading, setUploading] = useState<boolean>(false);
 
-  // Multi-Device & Security State
   const [devices, setDevices] = useState<Device[]>([]);
   const [activeDeviceIP, setActiveDeviceIP] = useState<string | null>(null);
   const [newDeviceIP, setNewDeviceIP] = useState<string>("");
@@ -47,7 +46,6 @@ export default function App() {
     useState<ConnectionRequest | null>(null);
   const [recentDevices, setRecentDevices] = useState<Device[]>([]);
 
-  // File Browser State
   const [currentPath, setCurrentPath] = useState<string>("/");
   const [parentPath, setParentPath] = useState<string>("");
   const [files, setFiles] = useState<FileInfo[]>([]);
@@ -56,6 +54,14 @@ export default function App() {
     Record<string, TransferProgress>
   >({});
   const [toasts, setToasts] = useState<Toast[]>([]);
+
+  // ── HYBRID DROP STATE (Cross-Platform Savior) ──
+  const lastDropTime = useRef<number>(0);
+  const dropStateRef = useRef({ activeDeviceIP, currentPath, devices });
+
+  useEffect(() => {
+    dropStateRef.current = { activeDeviceIP, currentPath, devices };
+  }, [activeDeviceIP, currentPath, devices]);
 
   // ── Init ──────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -98,6 +104,55 @@ export default function App() {
       showToast(`Connection lost or closed`, "error");
     });
 
+    // ── WAILS NATIVE OS DROP (Linux Fallback) ──
+    EventsOn(
+      "wails:file-drop",
+      async (_x: number, _y: number, paths: string[]) => {
+        const { activeDeviceIP, currentPath, devices } = dropStateRef.current;
+        if (!activeDeviceIP || !paths || paths.length === 0) return;
+
+        // Debounce: If HTML5 handled this < 1 second ago (Windows), ignore this native OS event!
+        if (Date.now() - lastDropTime.current < 1000) return;
+        lastDropTime.current = Date.now();
+
+        setUploading(true);
+        try {
+          const port =
+            devices.find((d) => d.ip === activeDeviceIP)?.port || "34931";
+
+          // Use backend binding to push absolute paths natively
+          await PushToAndroid(activeDeviceIP, port, currentPath, paths);
+
+          // Fetch new files to update UI
+          const result: any = await GetRemoteFiles(
+            activeDeviceIP,
+            port,
+            currentPath,
+          );
+          setFiles(result.files || []);
+          setCurrentPath(result.path);
+          setParentPath(result.parent);
+
+          const baseDir =
+            currentPath === "/"
+              ? "/"
+              : currentPath.split("/").filter(Boolean).pop();
+          showToast(
+            `Successfully uploaded ${paths.length} file(s)`,
+            "success",
+            baseDir,
+          );
+        } catch (err: any) {
+          showToast(
+            `Drop upload failed: ${err.message || String(err)}`,
+            "error",
+          );
+        } finally {
+          setUploading(false);
+        }
+      },
+    );
+
     if ("Notification" in window && Notification.permission === "default") {
       Notification.requestPermission();
     }
@@ -109,6 +164,7 @@ export default function App() {
       EventsOff("upload_complete");
       EventsOff("connection_requested");
       EventsOff("connection_lost");
+      EventsOff("wails:file-drop");
     };
   }, []);
 
@@ -328,15 +384,17 @@ export default function App() {
     }
   };
 
+  // ── HTML5 DROP (Windows / Mac) ──
   const handleDropUpload = async (droppedFiles: File[]) => {
     if (!activeDeviceIP) return;
+
+    // Stamp the drop to prevent wails:file-drop from duplicate firing
+    lastDropTime.current = Date.now();
 
     setUploading(true);
     let successCount = 0;
 
     try {
-      // 🚨 CRITICAL FIX: Everything is now inside the try/catch block.
-      // If GetSessionToken fails or bindings are out of date, it will now gracefully trigger a toast error!
       if (typeof GetSessionToken !== "function") {
         throw new Error(
           "Wails bindings out of date. Please run 'wails generate module'.",
@@ -370,7 +428,6 @@ export default function App() {
         getBaseDirName(currentPath),
       );
     } catch (err: any) {
-      // We will now correctly see if it's a Fetch/CORS error or a Token error!
       showToast(`Drop upload failed: ${err.message || String(err)}`, "error");
     } finally {
       setUploading(false);
@@ -447,7 +504,6 @@ export default function App() {
             onUploadFolder={handleUploadFolder}
             onDropUpload={handleDropUpload}
             onCreateFolder={handleCreateFolder}
-            // 🚨 CRITICAL FIX: Restored onError so FileBrowser doesn't crash React!
             onError={(msg) => showToast(msg, "error")}
           />
           <TransferDrawer transfers={activeTransfers} />

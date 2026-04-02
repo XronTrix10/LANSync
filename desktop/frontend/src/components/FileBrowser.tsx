@@ -59,8 +59,6 @@ export function FileBrowser({
       if (!activeDeviceIP) return;
 
       dragCounter.current++;
-
-      // Blindly show overlay (Linux hides e.dataTransfer.types for security here)
       setIsDragging(true);
     },
     [activeDeviceIP],
@@ -86,51 +84,47 @@ export function FileBrowser({
       let hasFolder = false;
       let hasLargeFile = false;
 
-      // ── CROSS-PLATFORM PARSER (Windows + Mac + Linux) ──
-      if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
-        for (const item of Array.from(e.dataTransfer.items)) {
-          if (item.kind === "file") {
-            // 1. Windows/Mac strict folder check
-            if (typeof item.webkitGetAsEntry === "function") {
-              const entry = item.webkitGetAsEntry();
-              if (entry?.isDirectory) {
-                hasFolder = true;
-                continue; // Skip folders
-              }
-            }
-
-            // 2. Extract file
-            const file = item.getAsFile();
-            if (file) {
-              // Linux folder check fallback
-              if (!file.type && file.size % 4096 === 0 && file.size <= 102400) {
-                hasFolder = true;
-                continue;
-              }
-
-              if (file.size >= 4294967296) hasLargeFile = true;
-              else validFiles.push(file);
+      // 1. Detect Folders securely (Works on Windows / Mac Chromium)
+      if (e.dataTransfer.items) {
+        for (let i = 0; i < e.dataTransfer.items.length; i++) {
+          const item = e.dataTransfer.items[i];
+          if (
+            item.kind === "file" &&
+            typeof item.webkitGetAsEntry === "function"
+          ) {
+            const entry = item.webkitGetAsEntry();
+            if (entry?.isDirectory) {
+              hasFolder = true;
             }
           }
         }
       }
-      // Fallback for strict Linux WebKit environments
-      else if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-        for (const file of Array.from(e.dataTransfer.files)) {
-          if (!file.type && file.size % 4096 === 0 && file.size <= 102400) {
-            hasFolder = true;
-            continue;
-          }
 
-          if (file.size >= 4294967296) hasLargeFile = true;
-          else validFiles.push(file);
+      // 2. Extract valid files directly from the reliable HTML5 FileList
+      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        for (let i = 0; i < e.dataTransfer.files.length; i++) {
+          const file = e.dataTransfer.files[i];
+          if (file.size >= 4294967296) {
+            hasLargeFile = true;
+          } else {
+            validFiles.push(file);
+          }
         }
       }
 
-      if (hasFolder)
+      if (hasFolder) {
         onError("Please use the 'Folder' button to upload folders");
-      if (hasLargeFile) onError("One or more files are too large (4GB limit).");
-      if (validFiles.length > 0) onDropUpload(validFiles);
+        return;
+      }
+
+      if (hasLargeFile) {
+        onError("One or more files are too large (4GB limit).");
+      }
+
+      // On Linux, validFiles is empty here, so this safely skips doing anything!
+      if (validFiles.length > 0) {
+        onDropUpload(validFiles);
+      }
     },
     [onDropUpload, onError],
   );
@@ -172,7 +166,6 @@ export function FileBrowser({
       onDrop={handleDrop}
     >
       {/* ── Drag Overlay ── */}
-      {/* Fallback dark tint ensures text is readable on Linux where blur is disabled */}
       {isDragging && (
         <div className="absolute inset-0 z-40 bg-bg-base/75 backdrop-blur-md pointer-events-none transition-all duration-200" />
       )}
