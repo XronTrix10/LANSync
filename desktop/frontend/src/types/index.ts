@@ -32,6 +32,15 @@ export interface Device {
   type: string;
 }
 
+// NEW: Handshake Request Payload
+export interface ConnectionRequest {
+  ip: string;
+  deviceName: string;
+  os: string;
+  type: string;
+  tokenForB: string;
+}
+
 // ─── Utility Formatters ───────────────────────────────────────────────────────
 
 export function formatSize(bytes: number): string {
@@ -66,4 +75,21 @@ export function getOSLabel(os: string): string {
 
 export function getFileExtension(name: string): string {
   return name.split(".").pop()?.toLowerCase() ?? "";
+}
+
+export interface Device {
+  ip: string;
+  port: string;
+  deviceName: string;
+  os: string;
+  type: string;
+}
+
+export interface ConnectionRequest {
+  ip: string;
+  port: string;
+  deviceName: string;
+  os: string;
+  type: string;
+  tokenForB: string;
 }

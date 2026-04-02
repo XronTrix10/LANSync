@@ -1,41 +1,55 @@
+import { ShieldAlert } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
+  AcceptConnection,
+  Disconnect,
   DownloadFile,
   DownloadFolder,
-  GetLocalIP,
+  GetHostName,
+  GetLocalIPs,
   GetRemoteFiles,
   IdentifyDevice,
+  MakeDirectory,
   PushFolderToAndroid,
   PushToAndroid,
+  RejectConnection,
+  RequestConnection,
   SelectDirectory,
   SelectFiles,
+  GetSessionToken, // Make sure this is exported from Wails!
 } from "../wailsjs/go/main/App";
-import { EventsOn } from "../wailsjs/runtime/runtime";
+import { EventsOn, EventsOff } from "../wailsjs/runtime/runtime";
 
-import type { FileInfo, TransferProgress, Toast, Device } from "./types";
-import { Sidebar } from "./components/Sidebar";
 import { FileBrowser } from "./components/FileBrowser";
-import { TransferDrawer } from "./components/TransferDrawer";
-import { ToastContainer } from "./components/ToastContainer";
+import { Sidebar } from "./components/Sidebar";
 import { TitleBar } from "./components/TitleBar";
+import { ToastContainer } from "./components/ToastContainer";
+import { TransferDrawer } from "./components/TransferDrawer";
+import type {
+  ConnectionRequest,
+  Device,
+  FileInfo,
+  Toast,
+  TransferProgress,
+} from "./types";
 
 export default function App() {
-  const [localIP, setLocalIP] = useState<string>("Loading...");
+  const [localIPs, setLocalIPs] = useState<string[]>(["Loading..."]);
+  const [localDeviceName, setLocalDeviceName] = useState<string>("Loading...");
   const [loading, setLoading] = useState<boolean>(false);
   const [uploading, setUploading] = useState<boolean>(false);
 
-  // Multi-Device State
+  // Multi-Device & Security State
   const [devices, setDevices] = useState<Device[]>([]);
   const [activeDeviceIP, setActiveDeviceIP] = useState<string | null>(null);
   const [newDeviceIP, setNewDeviceIP] = useState<string>("");
-
-  // Persistence State
+  const [pendingRequest, setPendingRequest] =
+    useState<ConnectionRequest | null>(null);
   const [recentDevices, setRecentDevices] = useState<Device[]>([]);
 
   // File Browser State
   const [currentPath, setCurrentPath] = useState<string>("/");
   const [parentPath, setParentPath] = useState<string>("");
-  const [deviceRootPath, setDeviceRootPath] = useState<string>(""); // NEW: Stores the absolute root sandbox
   const [files, setFiles] = useState<FileInfo[]>([]);
 
   const [activeTransfers, setActiveTransfers] = useState<
@@ -49,12 +63,11 @@ export default function App() {
     if (savedDevices) {
       try {
         setRecentDevices(JSON.parse(savedDevices));
-      } catch (e) {
-        console.error("Failed to parse recent devices");
-      }
+      } catch (e) {}
     }
 
-    GetLocalIP().then(setLocalIP);
+    GetLocalIPs().then(setLocalIPs);
+    GetHostName().then(setLocalDeviceName);
 
     EventsOn("transfer_progress", (progress: TransferProgress) => {
       setActiveTransfers((prev) => ({ ...prev, [progress.id]: progress }));
@@ -71,23 +84,39 @@ export default function App() {
     EventsOn("upload_start", () => setUploading(true));
     EventsOn("upload_complete", () => setUploading(false));
 
-    if (
-      "Notification" in window &&
-      Notification.permission !== "denied" &&
-      Notification.permission !== "granted"
-    ) {
+    EventsOn("connection_requested", (req: ConnectionRequest) => {
+      setPendingRequest(req);
+      sendOSNotification(
+        "Connection Request",
+        `${req.deviceName} wants to connect.`,
+      );
+    });
+
+    EventsOn("connection_lost", (ip: string) => {
+      setDevices((prev) => prev.filter((d) => d.ip !== ip));
+      setActiveDeviceIP((current) => (current === ip ? null : current));
+      showToast(`Connection lost or closed`, "error");
+    });
+
+    if ("Notification" in window && Notification.permission === "default") {
       Notification.requestPermission();
     }
+
+    return () => {
+      EventsOff("transfer_progress");
+      EventsOff("transfer_complete");
+      EventsOff("upload_start");
+      EventsOff("upload_complete");
+      EventsOff("connection_requested");
+      EventsOff("connection_lost");
+    };
   }, []);
 
   useEffect(() => {
-    if (activeDeviceIP) {
-      setDeviceRootPath(""); // Reset root context for new device
-      navigateTo("/");
-    } else {
+    if (activeDeviceIP) navigateTo("/");
+    else {
       setFiles([]);
       setCurrentPath("/");
-      setDeviceRootPath("");
     }
   }, [activeDeviceIP]);
 
@@ -111,31 +140,32 @@ export default function App() {
 
   const sendOSNotification = (title: string, body: string) => {
     if (!("Notification" in window)) return;
-    if (Notification.permission === "granted") {
+    if (Notification.permission === "granted")
       new Notification(title, { body });
-    }
   };
 
-  const showToast = (message: string, type: "success" | "error", path?: string) => {
+  const showToast = (
+    message: string,
+    type: "success" | "error",
+    path?: string,
+  ) => {
     const id = Date.now();
     setToasts((prev) => [...prev, { id, message, type, path }]);
-    setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 6000);
+    setTimeout(
+      () => setToasts((prev) => prev.filter((t) => t.id !== id)),
+      6000,
+    );
   };
 
-  // Convert absolute paths to clean relative paths for Notifications/Toasts
-  const getDisplayPath = (absolutePath: string) => {
-    if (!absolutePath || !deviceRootPath) return absolutePath;
-    const normPath = absolutePath.replace(/\\/g, "/");
-    const normRoot = deviceRootPath.replace(/\\/g, "/");
-    
-    if (normPath.startsWith(normRoot)) {
-      let rel = normPath.substring(normRoot.length);
-      if (!rel.startsWith("/")) rel = "/" + rel;
-      return rel === "/" ? "/" : rel;
-    }
-    return normPath;
+  const getActivePort = () => {
+    const device = devices.find((d) => d.ip === activeDeviceIP);
+    return device?.port || "34931";
+  };
+
+  const getBaseDirName = (path: string) => {
+    if (!path || path === "/") return "/";
+    const segments = path.split("/").filter(Boolean);
+    return segments.length > 0 ? segments[segments.length - 1] : "/";
   };
 
   // ── Device management ─────────────────────────────────────────────────────
@@ -144,26 +174,49 @@ export default function App() {
     setLoading(true);
     try {
       const device: any = await IdentifyDevice(ipToConnect);
-      setDevices((prev) => {
-        if (prev.some((d) => d.ip === device.ip)) return prev;
-        return [...prev, device];
-      });
-      setActiveDeviceIP(device.ip);
-      setNewDeviceIP("");
-      addRecentDevice(device);
-      showToast(`Connected to ${device.deviceName}`, "success");
+      showToast(`Asking ${device.deviceName} to connect...`, "success");
+
+      const accepted = await RequestConnection(device.ip, device.port);
+      if (accepted) {
+        setDevices((prev) => {
+          if (prev.some((d) => d.ip === device.ip)) return prev;
+          return [...prev, device];
+        });
+        setActiveDeviceIP(device.ip);
+        setNewDeviceIP("");
+        addRecentDevice(device);
+        showToast(`Secure connection established!`, "success");
+      } else {
+        showToast(`${device.deviceName} declined the connection`, "error");
+      }
     } catch (err: any) {
-      showToast(err.message || "Could not connect device", "error");
+      showToast(err.message || String(err), "error");
     } finally {
       setLoading(false);
     }
   };
 
-  const disconnectDevice = (ipToDisconnect: string) => {
-    setDevices((prev) => prev.filter((d) => d.ip !== ipToDisconnect));
-    if (activeDeviceIP === ipToDisconnect) {
-      setActiveDeviceIP(null);
-    }
+  const handleAcceptConnection = () => {
+    if (!pendingRequest) return;
+    AcceptConnection(pendingRequest.ip);
+    const newDevice: Device = {
+      ip: pendingRequest.ip,
+      port: pendingRequest.port,
+      deviceName: pendingRequest.deviceName,
+      os: pendingRequest.os,
+      type: pendingRequest.type,
+    };
+    setDevices((prev) => [...prev, newDevice]);
+    setActiveDeviceIP(newDevice.ip);
+    addRecentDevice(newDevice);
+    setPendingRequest(null);
+    showToast(`Connected securely to ${newDevice.deviceName}`, "success");
+  };
+
+  const handleRejectConnection = () => {
+    if (!pendingRequest) return;
+    RejectConnection(pendingRequest.ip);
+    setPendingRequest(null);
   };
 
   // ── File operations ───────────────────────────────────────────────────────
@@ -171,30 +224,16 @@ export default function App() {
     if (!activeDeviceIP) return;
     setLoading(true);
     try {
-      const result: any = await GetRemoteFiles(activeDeviceIP, path);
-      
-      const normPath = result.path ? result.path.replace(/\\/g, "/") : "";
-      const normParent = result.parent ? result.parent.replace(/\\/g, "/") : "";
-
-      // If we requested "/", the result IS the absolute root of the device shared folder
-      const isRootNav = path === "/";
-      if (isRootNav) {
-        setDeviceRootPath(normPath);
-      }
-      
-      const activeRoot = isRootNav ? normPath : deviceRootPath;
-
+      const result: any = await GetRemoteFiles(
+        activeDeviceIP,
+        getActivePort(),
+        path,
+      );
       setFiles(result.files || []);
-      setCurrentPath(normPath);
-      
-      // Stop the user from going "UP" beyond the root boundary
-      if (normPath === activeRoot) {
-        setParentPath(""); 
-      } else {
-        setParentPath(normParent);
-      }
+      setCurrentPath(result.path);
+      setParentPath(result.parent);
     } catch (err: any) {
-      showToast("Failed to load directory", "error");
+      showToast("Access denied. Session may have expired.", "error");
     } finally {
       setLoading(false);
     }
@@ -203,18 +242,19 @@ export default function App() {
   const downloadItem = async (file: FileInfo) => {
     if (!activeDeviceIP) return;
     try {
-      let savedPath = "";
-      if (file.isDir) {
-        savedPath = await DownloadFolder(activeDeviceIP, file.path);
-      } else {
-        savedPath = await DownloadFile(activeDeviceIP, file.path);
-      }
+      let savedPath = file.isDir
+        ? await DownloadFolder(activeDeviceIP, getActivePort(), file.path)
+        : await DownloadFile(activeDeviceIP, getActivePort(), file.path);
+
       if (savedPath) {
-        showToast(`Successfully downloaded: ${file.name}`, "success", savedPath);
-        sendOSNotification("Download Complete", `${file.name} saved to computer.`);
+        showToast(
+          `Successfully downloaded: ${file.name}`,
+          "success",
+          savedPath,
+        );
       }
     } catch (err: any) {
-      showToast(`Download failed: ${err.message}`, "error");
+      showToast(`Download failed: ${err.message || String(err)}`, "error");
     }
   };
 
@@ -223,16 +263,20 @@ export default function App() {
     try {
       const selectedFiles = await SelectFiles();
       if (!selectedFiles || selectedFiles.length === 0) return;
-
-      await PushToAndroid(activeDeviceIP, currentPath, selectedFiles);
+      await PushToAndroid(
+        activeDeviceIP,
+        getActivePort(),
+        currentPath,
+        selectedFiles,
+      );
       navigateTo(currentPath);
       showToast(
         `${selectedFiles.length} file(s) successfully uploaded`,
         "success",
-        getDisplayPath(currentPath), // Clean path
+        getBaseDirName(currentPath),
       );
     } catch (err: any) {
-      showToast(`Upload failed: ${err.message}`, "error");
+      showToast(`Upload failed: ${err.message || String(err)}`, "error");
     }
   };
 
@@ -241,70 +285,93 @@ export default function App() {
     try {
       const selectedFolder = await SelectDirectory();
       if (!selectedFolder) return;
-
-      await PushFolderToAndroid(activeDeviceIP, currentPath, selectedFolder);
+      await PushFolderToAndroid(
+        activeDeviceIP,
+        getActivePort(),
+        currentPath,
+        selectedFolder,
+      );
       navigateTo(currentPath);
-      showToast(`Folder successfully uploaded`, "success", getDisplayPath(currentPath)); // Clean path
+      showToast(
+        `Folder successfully uploaded`,
+        "success",
+        getBaseDirName(currentPath),
+      );
     } catch (err: any) {
-      showToast(`Folder upload failed: ${err.message}`, "error");
+      showToast(`Folder upload failed: ${err.message || String(err)}`, "error");
     }
   };
 
   const handleCreateFolder = async (folderName: string) => {
     if (!activeDeviceIP || !folderName.trim()) return;
-
     setLoading(true);
     try {
-      // Direct HTTP Post safely encodes spaces and special characters
-      const response = await fetch(
-        `http://${activeDeviceIP}/api/files/mkdir?dir=${encodeURIComponent(currentPath)}&name=${encodeURIComponent(folderName.trim())}`,
-        { method: "POST" }
+      await MakeDirectory(
+        activeDeviceIP,
+        getActivePort(),
+        currentPath,
+        folderName.trim(),
       );
-
-      if (!response.ok) {
-        throw new Error(`Server rejected request`);
-      }
-
-      navigateTo(currentPath); // Refresh the UI to show the new folder
-      showToast(`Folder "${folderName}" created`, "success", getDisplayPath(currentPath));
+      navigateTo(currentPath);
+      showToast(
+        `Folder "${folderName}" created`,
+        "success",
+        getBaseDirName(currentPath),
+      );
     } catch (err: any) {
-      showToast(`Failed to create folder: ${err.message}`, "error");
+      showToast(
+        `Failed to create folder: ${err.message || String(err)}`,
+        "error",
+      );
     } finally {
       setLoading(false);
     }
   };
 
   const handleDropUpload = async (droppedFiles: File[]) => {
-    if (!activeDeviceIP || droppedFiles.length === 0) return;
-    
+    if (!activeDeviceIP) return;
+
     setUploading(true);
     let successCount = 0;
 
     try {
+      // 🚨 CRITICAL FIX: Everything is now inside the try/catch block.
+      // If GetSessionToken fails or bindings are out of date, it will now gracefully trigger a toast error!
+      if (typeof GetSessionToken !== "function") {
+        throw new Error(
+          "Wails bindings out of date. Please run 'wails generate module'.",
+        );
+      }
+
+      const token = await GetSessionToken(activeDeviceIP);
+      if (!token) throw new Error("Session expired. Please reconnect.");
+
       for (const file of droppedFiles) {
         const formData = new FormData();
-        formData.append("file", file);
+        formData.append("files", file);
 
-        const response = await fetch(
-          `http://${activeDeviceIP}/api/files/upload?dir=${encodeURIComponent(currentPath)}&name=${encodeURIComponent(file.name)}`,
+        const res = await fetch(
+          `http://${activeDeviceIP}:${getActivePort()}/api/files/upload?dir=${encodeURIComponent(currentPath)}&name=${encodeURIComponent(file.name)}`,
           {
             method: "POST",
+            headers: { Authorization: `Bearer ${token}` },
             body: formData,
-          }
+          },
         );
 
-        if (!response.ok) {
-          throw new Error(`Failed to upload ${file.name}`);
-        }
-        successCount++;
+        if (res.ok) successCount++;
+        else throw new Error("Server rejected the file.");
       }
-      
+
       navigateTo(currentPath);
-      showToast(`${successCount} file(s) successfully dropped & uploaded`, "success", getDisplayPath(currentPath)); // Clean path
-      sendOSNotification("Upload Complete", `${successCount} file(s) uploaded.`);
-      
+      showToast(
+        `Successfully uploaded ${successCount} file(s)`,
+        "success",
+        getBaseDirName(currentPath),
+      );
     } catch (err: any) {
-      showToast(`Upload failed: ${err.message}`, "error");
+      // We will now correctly see if it's a Fetch/CORS error or a Token error!
+      showToast(`Drop upload failed: ${err.message || String(err)}`, "error");
     } finally {
       setUploading(false);
     }
@@ -315,16 +382,51 @@ export default function App() {
     <div className="flex flex-col h-screen bg-bg-base text-[#dde4f0] select-none overflow-hidden">
       <ToastContainer toasts={toasts} />
       <TitleBar />
+
+      {pendingRequest && (
+        <div className="absolute inset-0 z-50 bg-bg-base/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-surface border border-accent/30 rounded-2xl w-full max-w-sm shadow-[0_0_40px_rgba(61,158,255,0.1)] p-6 flex flex-col items-center text-center">
+            <div className="w-16 h-16 rounded-full bg-accent/10 flex items-center justify-center mb-4 border border-accent/20">
+              <ShieldAlert size={28} className="text-accent" />
+            </div>
+            <h3 className="text-lg font-semibold text-[#dde4f0] mb-1">
+              Connection Request
+            </h3>
+            <p className="text-sm text-[#8090a8] mb-6">
+              <strong className="text-[#dde4f0]">
+                {pendingRequest.deviceName}
+              </strong>{" "}
+              ({pendingRequest.ip}) wants to connect.
+            </p>
+            <div className="flex gap-3 w-full">
+              <button
+                onClick={handleRejectConnection}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-[#f04a6a] bg-[#f04a6a]/10 hover:bg-[#f04a6a]/20 transition-all"
+              >
+                Reject
+              </button>
+              <button
+                onClick={handleAcceptConnection}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-[#00c9a7] bg-[#00c9a7]/10 hover:bg-[#00c9a7]/20 transition-all"
+              >
+                Accept
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-1 overflow-hidden min-h-0">
         <Sidebar
-          localIP={localIP}
+          localDeviceName={localDeviceName}
+          localIPs={localIPs}
           devices={devices}
           activeDeviceIP={activeDeviceIP}
           recentDevices={recentDevices}
           newDeviceIP={newDeviceIP}
           loading={loading}
           onSetActiveDevice={setActiveDeviceIP}
-          onDisconnect={disconnectDevice}
+          onDisconnect={(ip) => Disconnect(ip)}
           onNewDeviceIPChange={setNewDeviceIP}
           onConnect={connectToDevice}
           onRemoveRecent={removeRecentDevice}
@@ -336,7 +438,7 @@ export default function App() {
             files={files}
             currentPath={currentPath}
             parentPath={parentPath}
-            deviceRootPath={deviceRootPath} // <-- PASSING THE ROOT HERE
+            deviceRootPath={""}
             loading={loading}
             uploading={uploading}
             onNavigate={navigateTo}
@@ -345,6 +447,7 @@ export default function App() {
             onUploadFolder={handleUploadFolder}
             onDropUpload={handleDropUpload}
             onCreateFolder={handleCreateFolder}
+            // 🚨 CRITICAL FIX: Restored onError so FileBrowser doesn't crash React!
             onError={(msg) => showToast(msg, "error")}
           />
           <TransferDrawer transfers={activeTransfers} />

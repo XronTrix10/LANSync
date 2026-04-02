@@ -19,8 +19,8 @@ export function ToastContainer({ toasts }: Props) {
             min-w-72 max-w-sm
             animate-in slide-in-from-bottom-4 fade-in duration-200
             ${toast.type === "success"
-              ? "bg-[#0e1117]/95 border-[#00c9a7]/30"
-              : "bg-[#0e1117]/95 border-[#f04a6a]/30"
+              ? "bg-surface/95 border-[#00c9a7]/30"
+              : "bg-surface/95 border-[#f04a6a]/30"
             }
           `}
         >

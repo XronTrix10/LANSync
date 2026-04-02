@@ -1,18 +1,16 @@
 import {
-  ChevronUp,
   CloudUpload,
-  Download,
   FolderPlus,
   FolderUp,
   Layers,
   Loader2,
-  RefreshCw,
   Upload,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { FileInfo } from "../types";
-import { formatSize } from "../types";
-import { FileIcon, fileIconColor } from "./FileIcon";
+import { BrowserToolbar } from "./BrowserToolbar";
+import { CreateFolderModal } from "./CreateFolderModal";
+import { FileRow } from "./FileRow";
 
 interface Props {
   activeDeviceIP: string | null;
@@ -48,18 +46,10 @@ export function FileBrowser({
   onError,
 }: Props) {
   const [isDragging, setIsDragging] = useState(false);
-  const [showFolderMenu, setShowFolderMenu] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [newFolderName, setNewFolderName] = useState("");
-  const [folderError, setFolderError] = useState("");
   const dragCounter = useRef(0);
 
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = () => setShowFolderMenu(false);
-    if (showFolderMenu) document.addEventListener("click", handleClickOutside);
-    return () => document.removeEventListener("click", handleClickOutside);
-  }, [showFolderMenu]);
+  const disabled = loading || uploading;
 
   // ── Drag and drop handlers ──────────────────────────────────────────────────
   const handleDragEnter = useCallback(
@@ -67,10 +57,11 @@ export function FileBrowser({
       e.preventDefault();
       e.stopPropagation();
       if (!activeDeviceIP) return;
+
       dragCounter.current++;
-      if (e.dataTransfer.types.includes("Files")) {
-        setIsDragging(true);
-      }
+
+      // Blindly show overlay (Linux hides e.dataTransfer.types for security here)
+      setIsDragging(true);
     },
     [activeDeviceIP],
   );
@@ -79,118 +70,70 @@ export function FileBrowser({
     e.preventDefault();
     e.stopPropagation();
     dragCounter.current--;
-    if (dragCounter.current === 0) {
-      setIsDragging(false);
-    }
-  }, []);
-
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    e.dataTransfer.dropEffect = "copy";
+    if (dragCounter.current === 0) setIsDragging(false);
   }, []);
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
       e.stopPropagation();
-
       setIsDragging(false);
       dragCounter.current = 0;
 
-      if (!e.dataTransfer || !e.dataTransfer.items) return;
+      if (!e.dataTransfer) return;
 
       const validFiles: File[] = [];
       let hasFolder = false;
       let hasLargeFile = false;
 
-      const items = Array.from(e.dataTransfer.items);
-      for (const item of items) {
-        if (item.kind === "file") {
-          const entry = item.webkitGetAsEntry();
-          if (entry?.isDirectory) {
-            hasFolder = true;
-          } else {
+      // ── CROSS-PLATFORM PARSER (Windows + Mac + Linux) ──
+      if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+        for (const item of Array.from(e.dataTransfer.items)) {
+          if (item.kind === "file") {
+            // 1. Windows/Mac strict folder check
+            if (typeof item.webkitGetAsEntry === "function") {
+              const entry = item.webkitGetAsEntry();
+              if (entry?.isDirectory) {
+                hasFolder = true;
+                continue; // Skip folders
+              }
+            }
+
+            // 2. Extract file
             const file = item.getAsFile();
             if (file) {
-              if (file.size >= 4294967296) {
-                hasLargeFile = true;
-              } else {
-                validFiles.push(file);
+              // Linux folder check fallback
+              if (!file.type && file.size % 4096 === 0 && file.size <= 102400) {
+                hasFolder = true;
+                continue;
               }
+
+              if (file.size >= 4294967296) hasLargeFile = true;
+              else validFiles.push(file);
             }
           }
         }
       }
+      // Fallback for strict Linux WebKit environments
+      else if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        for (const file of Array.from(e.dataTransfer.files)) {
+          if (!file.type && file.size % 4096 === 0 && file.size <= 102400) {
+            hasFolder = true;
+            continue;
+          }
 
-      if (hasFolder) {
+          if (file.size >= 4294967296) hasLargeFile = true;
+          else validFiles.push(file);
+        }
+      }
+
+      if (hasFolder)
         onError("Please use the 'Folder' button to upload folders");
-      }
-      if (hasLargeFile) {
-        onError("Please use the 'Files' button to upload large files");
-      }
-      if (validFiles.length > 0) {
-        onDropUpload(validFiles);
-      }
+      if (hasLargeFile) onError("One or more files are too large (4GB limit).");
+      if (validFiles.length > 0) onDropUpload(validFiles);
     },
     [onDropUpload, onError],
   );
-
-  const handleCreateFolderSubmit = () => {
-    const trimmed = newFolderName.trim();
-    if (!trimmed) return;
-
-    // 1. Validate alphanumeric and spaces
-    if (!/^[a-zA-Z0-9 ]+$/.test(trimmed)) {
-      setFolderError("Provide valid folder name");
-      return;
-    }
-
-    // 2. Validate if folder already exists (case-insensitive check)
-    const folderExists = files.some(
-      (file) => file.isDir && file.name.toLowerCase() === trimmed.toLowerCase(),
-    );
-
-    if (folderExists) {
-      setFolderError("Folder with this name already exists");
-      return;
-    }
-
-    // 3. If valid, proceed and close
-    onCreateFolder(trimmed);
-    setShowCreateModal(false);
-    setNewFolderName("");
-    setFolderError(""); // Clear any lingering errors
-  };
-
-  // ── Path display calculations ──────────────────────────────────────────────
-  const normPath = currentPath ? currentPath.replace(/\\/g, "/") : "";
-  const normRoot = deviceRootPath ? deviceRootPath.replace(/\\/g, "/") : "";
-
-  let displayPath = normPath;
-  if (normRoot && normPath.startsWith(normRoot)) {
-    displayPath = normPath.substring(normRoot.length);
-  }
-  if (!displayPath.startsWith("/")) displayPath = "/" + displayPath;
-
-  const pathSegments = displayPath.split("/").filter(Boolean);
-
-  const isRoot = normPath === normRoot;
-  const canGoUp = !isRoot && parentPath;
-
-  const MAX_SEGMENTS = 5;
-  const showEllipsis = pathSegments.length > MAX_SEGMENTS;
-  const visibleSegments = showEllipsis
-    ? pathSegments.slice(-MAX_SEGMENTS)
-    : pathSegments;
-
-  const buildAbsolutePath = (relativePath: string) => {
-    if (!normRoot) return relativePath;
-    if (normRoot.endsWith("/")) return normRoot.slice(0, -1) + relativePath;
-    return normRoot + relativePath;
-  };
-
-  const disabled = loading || uploading;
 
   // ── Empty / no-device state ────────────────────────────────────────────────
   if (!activeDeviceIP) {
@@ -221,13 +164,20 @@ export function FileBrowser({
       className="flex-1 flex flex-col bg-bg-base overflow-hidden relative h-full min-h-0 w-full"
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
-      onDragOver={handleDragOver}
+      onDragOver={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = "copy";
+      }}
       onDrop={handleDrop}
     >
-      {/* ── Drag Overlay ──────────────────────────────────────────────────── */}
-      {isDragging && <div className="absolute inset-0 z-40 bg-transparent" />}
+      {/* ── Drag Overlay ── */}
+      {/* Fallback dark tint ensures text is readable on Linux where blur is disabled */}
       {isDragging && (
-        <div className="absolute inset-3 z-50 rounded-2xl border-2 border-dashed border-accent/60 bg-accent/5 backdrop-blur-sm flex flex-col items-center justify-center gap-3 pointer-events-none">
+        <div className="absolute inset-0 z-40 bg-bg-base/75 backdrop-blur-md pointer-events-none transition-all duration-200" />
+      )}
+      {isDragging && (
+        <div className="absolute inset-3 z-50 rounded-2xl border-2 border-dashed border-accent/60 bg-accent/5 backdrop-blur-md flex flex-col items-center justify-center gap-3 pointer-events-none">
           <div className="w-16 h-16 rounded-2xl bg-accent/10 border border-accent/30 flex items-center justify-center">
             <CloudUpload size={28} className="text-accent" strokeWidth={1.5} />
           </div>
@@ -235,197 +185,36 @@ export function FileBrowser({
             <p className="text-[15px] font-semibold text-accent">
               Drop to upload
             </p>
-            <p className="text-[12px] text-accent/60 mt-0.5">
-              Files will be uploaded to {displayPath}
-            </p>
           </div>
         </div>
       )}
 
-      {/* ── Create Folder Modal ───────────────────────────────────────────── */}
-      {showCreateModal && (
-        <div className="absolute inset-0 z-100 bg-bg-base/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-surface border border-[#1e2535] rounded-xl w-full max-w-sm shadow-2xl p-5 animate-in fade-in zoom-in-95 duration-150">
-            <h3 className="text-[14px] font-semibold text-[#dde4f0] mb-1">
-              Create New Folder
-            </h3>
-            <p className="text-[11px] text-[#8090a8] mb-4">
-              Enter a name for the new folder. Spaces are supported.
-            </p>
+      {/* ── Modals & Toolbar ── */}
+      <CreateFolderModal
+        isOpen={showCreateModal}
+        loading={loading}
+        existingFiles={files}
+        onClose={() => setShowCreateModal(false)}
+        onSubmit={(name) => {
+          onCreateFolder(name);
+          setShowCreateModal(false);
+        }}
+      />
 
-            <input
-              autoFocus
-              type="text"
-              value={newFolderName}
-              onChange={(e) => {
-                setNewFolderName(e.target.value);
-                setFolderError("");
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  handleCreateFolderSubmit();
-                }
-                if (e.key === "Escape") {
-                  setShowCreateModal(false);
-                  setNewFolderName("");
-                }
-              }}
-              placeholder="e.g. Vacation Photos"
-              className="w-full px-3 py-2 bg-bg-base border border-[#1e2535] rounded-lg text-[13px] text-[#dde4f0] placeholder-[#3d4d63] outline-none focus:border-[#00c9a7] focus:ring-1 focus:ring-[#00c9a7]/20 transition-all mb-4"
-            />
-            <div className="text-red-700 text-[12px] font-semibold -mt-2">
-              {folderError}
-            </div>
+      <BrowserToolbar
+        currentPath={currentPath}
+        parentPath={parentPath}
+        deviceRootPath={deviceRootPath}
+        loading={loading}
+        uploading={uploading}
+        disabled={disabled}
+        onNavigate={onNavigate}
+        onUploadFiles={onUploadFiles}
+        onUploadFolder={onUploadFolder}
+        onCreateFolderClick={() => setShowCreateModal(true)}
+      />
 
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => {
-                  setShowCreateModal(false);
-                  setNewFolderName("");
-                  setFolderError("");
-                }}
-                className="px-4 py-1.5 text-[12px] font-medium text-[#8090a8] hover:text-[#dde4f0] transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  handleCreateFolderSubmit();
-                }}
-                disabled={!newFolderName.trim() || loading}
-                className="px-4 py-1.5 bg-[#00c9a7]/10 border border-[#00c9a7]/30 text-[#00c9a7] rounded-lg text-[12px] font-medium hover:bg-[#00c9a7]/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {loading ? (
-                  <Loader2 size={12} className="animate-spin inline mr-1" />
-                ) : null}
-                Create
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Toolbar ───────────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-[#1e2535] bg-surface/60 shrink-0">
-        <button
-          onClick={() => onNavigate(parentPath || "/")}
-          disabled={!canGoUp || disabled}
-          className="p-1.5 rounded-lg text-[#3d4d63] border border-transparent hover:text-[#dde4f0] hover:bg-panel hover:border-[#1e2535] disabled:opacity-25 disabled:cursor-not-allowed transition-all"
-        >
-          <ChevronUp size={16} />
-        </button>
-
-        {/* ── Breadcrumb ── */}
-        <div className="flex-1 flex items-center gap-1 overflow-x-auto hide-scrollbar min-w-0">
-          <button
-            onClick={() => onNavigate("/")}
-            className="text-[11px] font-mono text-[#3d4d63] hover:text-accent transition-colors shrink-0 px-1 py-0.5 rounded hover:bg-accent/8"
-          >
-            /
-          </button>
-
-          {showEllipsis && (
-            <span className="flex items-center gap-1 shrink-0">
-              <span className="text-[#1e2535] text-[11px]">/</span>
-              <span className="text-[11px] font-mono px-1 py-0.5 text-[#8090a8] select-none">
-                ...
-              </span>
-            </span>
-          )}
-
-          {visibleSegments.map((seg, i) => {
-            const originalIndex =
-              pathSegments.length - visibleSegments.length + i;
-            const relativeSegPath =
-              "/" + pathSegments.slice(0, originalIndex + 1).join("/");
-            const absoluteSegPath = buildAbsolutePath(relativeSegPath);
-            const isLast = originalIndex === pathSegments.length - 1;
-
-            return (
-              <span
-                key={originalIndex}
-                className="flex items-center gap-1 shrink-0 min-w-0"
-              >
-                <span className="text-[#1e2535] text-[11px]">/</span>
-                <button
-                  onClick={() => !isLast && onNavigate(absoluteSegPath)}
-                  title={seg}
-                  className={`
-                    text-[11px] font-mono px-1 py-0.5 rounded transition-colors truncate max-w-30
-                    ${
-                      isLast
-                        ? "text-[#dde4f0] cursor-default"
-                        : "text-[#3d4d63] hover:text-accent hover:bg-accent/8 cursor-pointer"
-                    }
-                  `}
-                >
-                  {seg}
-                </button>
-              </span>
-            );
-          })}
-        </div>
-
-        <div className="flex items-center gap-1.5 shrink-0">
-          <button
-            onClick={() => onNavigate(currentPath)}
-            disabled={disabled}
-            className="p-1.5 rounded-lg text-[#3d4d63] border border-transparent hover:text-[#dde4f0] hover:bg-panel hover:border-[#1e2535] disabled:opacity-30 transition-all"
-          >
-            <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-          </button>
-          <div className="w-px h-4 bg-[#1e2535]" />
-
-          <button
-            onClick={onUploadFiles}
-            disabled={disabled}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold text-accent bg-accent/8 border border-accent/25 hover:bg-accent/15 hover:border-accent/40 disabled:opacity-40 transition-all"
-          >
-            {uploading ? (
-              <Loader2 size={12} className="animate-spin" />
-            ) : (
-              <Upload size={12} />
-            )}{" "}
-            Files
-          </button>
-
-          {/* ── Folder Dropdown Menu ── */}
-          <div className="relative" onClick={(e) => e.stopPropagation()}>
-            <button
-              onClick={() => setShowFolderMenu(!showFolderMenu)}
-              disabled={disabled}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold text-[#00c9a7] bg-[#00c9a7]/8 border border-[#00c9a7]/25 hover:bg-[#00c9a7]/15 hover:border-[#00c9a7]/40 disabled:opacity-40 transition-all"
-            >
-              <FolderUp size={12} /> Folder
-            </button>
-
-            {showFolderMenu && (
-              <div className="absolute top-full right-0 mt-1.5 w-44 bg-panel border border-[#1e2535] rounded-xl shadow-2xl py-1.5 px-1.5 z-50 animate-in fade-in zoom-in-95 duration-100">
-                <button
-                  onClick={() => {
-                    setShowFolderMenu(false);
-                    onUploadFolder();
-                  }}
-                  className="w-full rounded-lg flex items-center gap-2.5 px-3 py-2 text-[12px] font-medium text-[#dde4f0] hover:bg-[#00c9a7]/10 hover:text-[#00c9a7] transition-colors"
-                >
-                  <FolderUp size={13} /> Upload Folder
-                </button>
-                <div className="h-px w-full bg-[#1e2535] my-1" />
-                <button
-                  onClick={() => {
-                    setShowFolderMenu(false);
-                    setShowCreateModal(true);
-                  }}
-                  className="w-full rounded-lg flex items-center gap-2.5 px-3 py-2 text-[12px] font-medium text-[#dde4f0] hover:bg-accent/10 hover:text-accent transition-colors"
-                >
-                  <FolderPlus size={13} /> Create Folder
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
+      {/* ── Header Row ── */}
       <div className="grid grid-cols-[1fr_100px_80px] px-5 py-2 border-b border-[#1e2535] bg-surface/40 shrink-0">
         {["Name", "Size", ""].map((col, i) => (
           <span
@@ -437,19 +226,57 @@ export function FileBrowser({
         ))}
       </div>
 
-      <div className="flex-1 overflow-y-auto scrollbar-thin">
+      {/* ── File List Area ── */}
+      <div className="flex-1 overflow-y-auto scrollbar-thin relative">
         {loading && files.length === 0 && (
           <div className="flex items-center justify-center gap-2 py-16 text-[#3d4d63]">
             <Loader2 size={16} className="animate-spin" />
             <span className="text-[12px]">Loading…</span>
           </div>
         )}
+
+        {/* ── Empty State ── */}
         {!loading && files.length === 0 && (
-          <div className="flex flex-col items-center justify-center gap-2 py-16 text-[#3d4d63]">
-            <span className="text-3xl">📭</span>
-            <p className="text-[12px]">This folder is empty</p>
+          <div className="flex flex-col items-center justify-center h-full gap-4 pb-16 text-[#3d4d63]">
+            <div className="flex flex-col items-center gap-2">
+              <span className="text-4xl mb-1">📭</span>
+              <p className="text-[13px] text-[#8090a8] font-medium">
+                This folder is empty
+              </p>
+            </div>
+            <div className="flex items-center gap-3 mt-2">
+              <button
+                onClick={onUploadFiles}
+                disabled={disabled}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-[12px] font-semibold text-accent bg-accent/8 border border-accent/25 hover:bg-accent/15 hover:border-accent/40 disabled:opacity-40 transition-all"
+              >
+                {uploading ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <Upload size={14} />
+                )}{" "}
+                Upload Files
+              </button>
+
+              <button
+                onClick={onUploadFolder}
+                disabled={disabled}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-[12px] font-semibold text-[#00c9a7] bg-[#00c9a7]/8 border border-[#00c9a7]/25 hover:bg-[#00c9a7]/15 hover:border-[#00c9a7]/40 disabled:opacity-40 transition-all"
+              >
+                <FolderUp size={14} /> Upload Folder
+              </button>
+
+              <button
+                onClick={() => setShowCreateModal(true)}
+                disabled={disabled}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-[12px] font-semibold text-accent bg-accent/8 border border-accent/25 hover:bg-accent/15 hover:border-accent/40 disabled:opacity-40 transition-all"
+              >
+                <FolderPlus size={14} /> Create Folder
+              </button>
+            </div>
           </div>
         )}
+
         {files.map((file, idx) => (
           <FileRow
             key={`${file.path}-${idx}`}
@@ -459,56 +286,6 @@ export function FileBrowser({
             disabled={disabled}
           />
         ))}
-      </div>
-    </div>
-  );
-}
-
-interface FileRowProps {
-  file: FileInfo;
-  onNavigate: (path: string) => void;
-  onDownload: (file: FileInfo) => void;
-  disabled: boolean;
-}
-
-function FileRow({ file, onNavigate, onDownload, disabled }: FileRowProps) {
-  const iconColor = fileIconColor(file.name, file.isDir);
-
-  return (
-    <div
-      className="group grid grid-cols-[1fr_100px_80px] items-center px-5 py-2.5 min-h-11 border-b border-[#1e2535]/50 hover:bg-surface/80 transition-colors duration-100 cursor-default"
-      onClick={() => file.isDir && !disabled && onNavigate(file.path)}
-      style={{ cursor: file.isDir ? "pointer" : "default" }}
-    >
-      <div className="flex items-center gap-3 min-w-0">
-        <FileIcon
-          name={file.name}
-          isDir={file.isDir}
-          size={15}
-          strokeWidth={1.5}
-          style={{ color: iconColor, flexShrink: 0 }}
-        />
-        <span
-          className={`text-[13px] truncate leading-none ${file.isDir ? "text-[#dde4f0] font-medium group-hover:text-accent" : "text-[#8090a8] group-hover:text-[#dde4f0]"} transition-colors`}
-        >
-          {file.name}
-        </span>
-      </div>
-      <span className="text-[11px] font-mono text-[#3d4d63]">
-        {file.isDir ? "—" : formatSize(file.size)}
-      </span>
-      <div className="flex justify-end">
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onDownload(file);
-          }}
-          disabled={disabled}
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold text-[#3d4d63] border border-transparent opacity-0 group-hover:opacity-100 hover:text-accent hover:bg-accent/8 hover:border-accent/25 disabled:pointer-events-none transition-all duration-150"
-        >
-          <Download size={11} />
-          {file.isDir ? "Zip" : "Get"}
-        </button>
       </div>
     </div>
   );

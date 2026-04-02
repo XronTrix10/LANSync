@@ -1,4 +1,4 @@
-import { ArrowDownToLine, Zap, Clock } from "lucide-react";
+import { ArrowDownToLine, Clock, Zap } from "lucide-react";
 import type { TransferProgress } from "../types";
 import { formatETA } from "../types";
 
@@ -18,7 +18,7 @@ export function TransferDrawer({ transfers }: Props) {
         <span className="text-[10px] font-bold tracking-[0.12em] uppercase text-[#8090a8]">
           Active Transfers
         </span>
-        <span className="ml-auto flex items-center justify-center w-5 h-5 rounded-full bg-[#3d9eff]/15 text-[#3d9eff] text-[10px] font-bold font-mono">
+        <span className="ml-auto flex items-center justify-center w-5 h-5 rounded-full bg-accent/15 text-accent text-[10px] font-bold font-mono">
           {items.length}
         </span>
       </div>
@@ -32,7 +32,7 @@ export function TransferDrawer({ transfers }: Props) {
               <span className="text-sm text-[#dde4f0] font-medium truncate">
                 {t.filename}
               </span>
-              <span className="text-xs font-mono text-[#3d9eff] shrink-0 tabular-nums">
+              <span className="text-xs font-mono text-accent shrink-0 tabular-nums">
                 {t.percent}%
               </span>
             </div>
@@ -53,7 +53,7 @@ export function TransferDrawer({ transfers }: Props) {
             {/* Speed + ETA */}
             <div className="flex items-center gap-4">
               <span className="flex items-center gap-1.5 text-[10px] font-mono text-[#8090a8]">
-                <Zap size={9} className="text-[#3d9eff]" />
+                <Zap size={9} className="text-accent" />
                 {t.speedMBps.toFixed(1)} MB/s
               </span>
               <span className="flex items-center gap-1.5 text-[10px] font-mono text-[#8090a8]">
