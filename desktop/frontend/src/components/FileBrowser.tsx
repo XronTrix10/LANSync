@@ -26,6 +26,7 @@ interface Props {
   onUploadFolder: () => void;
   onDropUpload: (files: File[]) => void;
   onCreateFolder: (folderName: string) => void;
+  onShareClipboard: () => void;
   onError: (msg: string) => void;
 }
 
@@ -43,6 +44,7 @@ export function FileBrowser({
   onUploadFolder,
   onDropUpload,
   onCreateFolder,
+  onShareClipboard,
   onError,
 }: Props) {
   const [isDragging, setIsDragging] = useState(false);
@@ -205,6 +207,7 @@ export function FileBrowser({
         onUploadFiles={onUploadFiles}
         onUploadFolder={onUploadFolder}
         onCreateFolderClick={() => setShowCreateModal(true)}
+        onShareClipboard={onShareClipboard}
       />
 
       {/* ── Header Row ── */}

@@ -10,15 +10,17 @@ import (
 
 	"lansync/internal/auth"
 	"lansync/internal/client"
+	"lansync/internal/clipboard"
 	"lansync/internal/server"
 	"lansync/internal/sys"
 )
 
 type App struct {
-	ctx            context.Context
-	sessionManager *auth.SessionManager
-	androidClient  *client.AndroidClient
-	desktopServer  *server.DesktopServer
+	ctx              context.Context
+	sessionManager   *auth.SessionManager
+	androidClient    *client.AndroidClient
+	desktopServer    *server.DesktopServer
+	clipboardManager *clipboard.ClipboardManager
 }
 
 func NewApp() *App { return &App{} }
@@ -28,8 +30,10 @@ func (a *App) startup(ctx context.Context) {
 	a.sessionManager = auth.NewSessionManager(func(droppedIP string) {
 		runtime.EventsEmit(a.ctx, "connection_lost", droppedIP)
 	})
+
+	a.clipboardManager = clipboard.NewClipboardManager(ctx, a.sessionManager, false)
 	a.androidClient = client.NewAndroidClient(ctx, a.sessionManager)
-	a.desktopServer = server.NewDesktopServer(a.sessionManager)
+	a.desktopServer = server.NewDesktopServer(a.sessionManager, a.clipboardManager)
 	a.desktopServer.SetContext(ctx)
 
 	go a.desktopServer.Start("34931")
@@ -51,7 +55,7 @@ func (a *App) GetLocalIPs() []string {
 func (a *App) GetHostName() string {
 	hostname, err := os.Hostname()
 	if err != nil {
-		return "My PC" // Fallback just in case
+		return "My PC"
 	}
 	return hostname
 }
@@ -79,6 +83,15 @@ func (a *App) MakeDirectory(ip string, port string, dir string, name string) err
 func (a *App) GetSessionToken(ip string) string {
 	return a.sessionManager.GetOutboundToken(ip)
 }
+
+// ── NEW: Clipboard Binding ──
+func (a *App) ShareClipboardText(ip string, port string) error {
+	if a.sessionManager.GetOutboundToken(ip) == "" {
+		return fmt.Errorf("device not securely connected")
+	}
+	return a.clipboardManager.ShareDesktopText(ip, port)
+}
+
 func (a *App) DownloadFile(ip string, port string, path string) (string, error) {
 	destPath, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
 		Title: "Save File", DefaultFilename: filepath.Base(path),

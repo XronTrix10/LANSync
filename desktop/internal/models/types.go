@@ -35,6 +35,7 @@ type ConnectionRequest struct {
 
 // ConnectionResponse is the "Acceptance" payload
 type ConnectionResponse struct {
-	Accepted  bool   `json:"accepted"`
-	TokenForA string `json:"tokenForA"` // Token we must use to talk to the requested device
+	Accepted   bool   `json:"accepted"`
+	TokenForA  string `json:"tokenForA"` // Token we must use to talk to the requested device
+	DeviceName string `json:"deviceName"`
 }

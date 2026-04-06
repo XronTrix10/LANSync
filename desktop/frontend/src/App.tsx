@@ -1,5 +1,5 @@
 import { ShieldAlert } from "lucide-react";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   AcceptConnection,
   Disconnect,
@@ -8,6 +8,7 @@ import {
   GetHostName,
   GetLocalIPs,
   GetRemoteFiles,
+  GetSessionToken,
   IdentifyDevice,
   MakeDirectory,
   PushFolderToAndroid,
@@ -16,9 +17,9 @@ import {
   RequestConnection,
   SelectDirectory,
   SelectFiles,
-  GetSessionToken,
+  ShareClipboardText,
 } from "../wailsjs/go/main/App";
-import { EventsOn, EventsOff } from "../wailsjs/runtime/runtime";
+import { EventsOff, EventsOn } from "../wailsjs/runtime/runtime";
 
 import { FileBrowser } from "./components/FileBrowser";
 import { Sidebar } from "./components/Sidebar";
@@ -79,7 +80,7 @@ export default function App() {
     if (savedDevices) {
       try {
         setRecentDevices(JSON.parse(savedDevices));
-      } catch (e) {}
+      } catch (e) { }
     }
 
     GetLocalIPs().then(setLocalIPs);
@@ -435,6 +436,20 @@ export default function App() {
     }
   };
 
+  // ── CLIPBOARD FEATURE ──
+  const handleShareClipboard = async () => {
+    if (!activeDeviceIP) return;
+    setLoading(true);
+    try {
+      await ShareClipboardText(activeDeviceIP, getActivePort());
+      showToast(`Desktop clipboard sent to device`, "success");
+    } catch (err: any) {
+      showToast(`Clipboard share failed: ${err.message || String(err)}`, "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col h-screen bg-bg-base text-[#dde4f0] select-none overflow-hidden">
@@ -505,6 +520,7 @@ export default function App() {
             onUploadFolder={handleUploadFolder}
             onDropUpload={handleDropUpload}
             onCreateFolder={handleCreateFolder}
+            onShareClipboard={handleShareClipboard}
             onError={(msg) => showToast(msg, "error")}
           />
           <TransferDrawer transfers={activeTransfers} />

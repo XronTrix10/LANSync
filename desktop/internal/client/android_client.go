@@ -56,13 +56,13 @@ func (c *AndroidClient) IdentifyDevice(inputIP string) (models.DeviceIdentity, e
 	return models.DeviceIdentity{}, fmt.Errorf("could not reach device")
 }
 
-func (c *AndroidClient) RequestConnection(targetIP string, targetPort string) (bool, error) {
+func (c *AndroidClient) RequestConnection(targetIP string, targetPort string) (string, error) {
 	tokenForB := c.sessionManager.GenerateToken()
 	hostname, _ := os.Hostname()
 
 	reqPayload := models.ConnectionRequest{
 		DeviceIdentity: models.DeviceIdentity{
-			IP:         sys.GetLocalIPs()[0], // <-- FIX: Grab the primary IP from the array
+			IP:         sys.GetLocalIPs()[0],
 			Port:       "34931",
 			DeviceName: hostname,
 			OS:         stdruntime.GOOS,
@@ -74,21 +74,27 @@ func (c *AndroidClient) RequestConnection(targetIP string, targetPort string) (b
 	jsonData, _ := json.Marshal(reqPayload)
 	resp, err := http.Post(fmt.Sprintf("http://%s:%s/api/connect", targetIP, targetPort), "application/json", bytes.NewBuffer(jsonData))
 	if err != nil || resp.StatusCode != http.StatusOK {
-		return false, fmt.Errorf("device did not respond")
+		return "", fmt.Errorf("device did not respond")
 	}
 	defer resp.Body.Close()
 
 	var result models.ConnectionResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return false, err
+		return "", err
 	}
 
 	if result.Accepted {
 		c.sessionManager.RegisterSession(targetIP, tokenForB, result.TokenForA)
 		go c.startHeartbeatLoop(targetIP, targetPort)
-		return true, nil
+
+		// Fallback just in case the PC couldn't fetch its hostname
+		name := result.DeviceName
+		if name == "" {
+			name = "Unknown PC"
+		}
+		return name, nil
 	}
-	return false, fmt.Errorf("connection rejected")
+	return "", fmt.Errorf("connection rejected")
 }
 
 func (c *AndroidClient) startHeartbeatLoop(targetIP string, targetPort string) {

@@ -1,10 +1,11 @@
 import {
   ChevronUp,
+  ClipboardPaste,
   FolderPlus,
   FolderUp,
   Loader2,
   RefreshCw,
-  Upload,
+  Upload
 } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -19,6 +20,7 @@ interface Props {
   onUploadFiles: () => void;
   onUploadFolder: () => void;
   onCreateFolderClick: () => void;
+  onShareClipboard: () => void;
 }
 
 export function BrowserToolbar({
@@ -32,6 +34,7 @@ export function BrowserToolbar({
   onUploadFiles,
   onUploadFolder,
   onCreateFolderClick,
+  onShareClipboard
 }: Props) {
   const [showFolderMenu, setShowFolderMenu] = useState(false);
 
@@ -135,6 +138,14 @@ export function BrowserToolbar({
           <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
         </button>
         <div className="w-px h-4 bg-[#1e2535]" />
+
+        <button
+          onClick={onShareClipboard}
+          disabled={disabled}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold text-[#a78bfa] bg-[#a78bfa]/8 border border-[#a78bfa]/25 hover:bg-[#a78bfa]/15 hover:border-[#a78bfa]/40 disabled:opacity-40 transition-all"
+        >
+          <ClipboardPaste size={12} /> Share Clipboard
+        </button>
 
         <button
           onClick={onUploadFiles}

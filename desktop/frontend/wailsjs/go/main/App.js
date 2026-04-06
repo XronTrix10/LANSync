@@ -65,3 +65,7 @@ export function SelectDirectory() {
 export function SelectFiles() {
   return window['go']['main']['App']['SelectFiles']();
 }
+
+export function ShareClipboardText(arg1, arg2) {
+  return window['go']['main']['App']['ShareClipboardText'](arg1, arg2);
+}

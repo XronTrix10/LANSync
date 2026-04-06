@@ -32,3 +32,5 @@ export function RequestConnection(arg1:string,arg2:string):Promise<boolean>;
 export function SelectDirectory():Promise<string>;
 
 export function SelectFiles():Promise<Array<string>>;
+
+export function ShareClipboardText(arg1:string,arg2:string):Promise<void>;

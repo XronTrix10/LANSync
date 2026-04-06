@@ -18,29 +18,29 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"lansync/internal/auth"
+	"lansync/internal/clipboard"
 	"lansync/internal/models"
 )
 
 type DesktopServer struct {
-	ctx             context.Context
-	sessionManager  *auth.SessionManager
-	pendingRequests map[string]chan bool
-	SharedDir       string // NEW: The secure jailed directory
-	mu              sync.Mutex
+	ctx              context.Context
+	sessionManager   *auth.SessionManager
+	clipboardManager *clipboard.ClipboardManager
+	pendingRequests  map[string]chan bool
+	SharedDir        string
+	mu               sync.Mutex
 }
 
-func NewDesktopServer(sm *auth.SessionManager) *DesktopServer {
-	// 1. Unpack the two values (we use the blank identifier '_' to ignore the error for simplicity)
+func NewDesktopServer(sm *auth.SessionManager, cm *clipboard.ClipboardManager) *DesktopServer {
 	homeDir, _ := os.UserHomeDir()
-
-	// 2. Now use the pure string variable
 	sharedFolder := filepath.Join(homeDir, "Downloads", "LanSync")
 	os.MkdirAll(sharedFolder, 0755)
 
 	return &DesktopServer{
-		sessionManager:  sm,
-		pendingRequests: make(map[string]chan bool),
-		SharedDir:       homeDir,
+		sessionManager:   sm,
+		clipboardManager: cm,
+		pendingRequests:  make(map[string]chan bool),
+		SharedDir:        homeDir,
 	}
 }
 
@@ -59,6 +59,8 @@ func (s *DesktopServer) Start(port string) {
 	mux.HandleFunc("/api/files/download", s.authMiddleware(s.handleDownload))
 	mux.HandleFunc("/api/files/upload", s.authMiddleware(s.handleUpload))
 	mux.HandleFunc("/api/files/mkdir", s.authMiddleware(s.handleMkdir))
+	mux.HandleFunc("/api/clipboard/share", s.authMiddleware(s.handleClipboardShare))
+	mux.HandleFunc("/api/disconnect", s.authMiddleware(s.handleDisconnect))
 
 	http.ListenAndServe(":"+port, mux)
 }
@@ -142,7 +144,6 @@ func (s *DesktopServer) handleConnect(w http.ResponseWriter, r *http.Request) {
 			tokenForA := s.sessionManager.GenerateToken()
 			s.sessionManager.RegisterSession(clientIP, tokenForA, req.TokenForB)
 
-			// FIX: Start Reverse Heartbeat back to the requester!
 			go func(ip, port, token string) {
 				for {
 					time.Sleep(5 * time.Second)
@@ -156,7 +157,12 @@ func (s *DesktopServer) handleConnect(w http.ResponseWriter, r *http.Request) {
 				}
 			}(clientIP, req.Port, req.TokenForB)
 
-			json.NewEncoder(w).Encode(models.ConnectionResponse{Accepted: true, TokenForA: tokenForA})
+			hostname, _ := os.Hostname()
+			json.NewEncoder(w).Encode(models.ConnectionResponse{
+				Accepted:   true,
+				TokenForA:  tokenForA,
+				DeviceName: hostname,
+			})
 		} else {
 			json.NewEncoder(w).Encode(models.ConnectionResponse{Accepted: false})
 		}
@@ -167,6 +173,19 @@ func (s *DesktopServer) handleConnect(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	delete(s.pendingRequests, clientIP)
 	s.mu.Unlock()
+}
+
+func (s *DesktopServer) handleDisconnect(w http.ResponseWriter, r *http.Request) {
+	clientIP, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		clientIP = r.RemoteAddr
+	}
+	clientIP = strings.TrimPrefix(clientIP, "::ffff:")
+
+	// Instantly kill the session and notify the Wails React frontend!
+	s.sessionManager.RemoveSession(clientIP)
+	runtime.EventsEmit(s.ctx, "connection_lost", clientIP)
+	w.WriteHeader(http.StatusOK)
 }
 
 func (s *DesktopServer) ResolveConnection(ip string, accept bool) {
@@ -305,4 +324,12 @@ func (s *DesktopServer) handleMkdir(w http.ResponseWriter, r *http.Request) {
 
 	os.MkdirAll(filepath.Join(absPhysical, folderName), 0755)
 	w.WriteHeader(http.StatusOK)
+}
+
+func (s *DesktopServer) handleClipboardShare(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	s.clipboardManager.HandleClipboardPost(w, r)
 }
