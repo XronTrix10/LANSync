@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"lansync/internal/auth"
@@ -28,22 +29,40 @@ var (
 	androidClient    *client.AndroidClient
 	desktopServer    *server.DesktopServer
 	clipboardManager *clipboard.ClipboardManager
+
+	mobileDeviceName  = "Android Phone"
+	currentExposedDir string
+	dirMutex          sync.RWMutex
+
+	pendingRequests = make(map[string]chan bool)
+	prMutex         sync.Mutex
+
+	cbProxy *androidBridgeProxy
 )
 
+// 1. ADDED CONNECTION PROMPT HOOK
 type BridgeCallback interface {
 	OnDeviceDropped(ip string)
 	OnClipboardDataReceived(data []byte, contentType string)
+	OnConnectionRequested(ip string, deviceName string)
+}
+
+type androidBridgeProxy struct{ cb BridgeCallback }
+
+func (p *androidBridgeProxy) OnClipboardReceived(data []byte, contentType string) {
+	p.cb.OnClipboardDataReceived(data, contentType)
 }
 
 func StartupWithCallback(cb BridgeCallback) {
 	ctx, cancel = context.WithCancel(context.Background())
+	cbProxy = &androidBridgeProxy{cb}
 
 	sessionManager = auth.NewSessionManager(func(droppedIP string) {
 		cb.OnDeviceDropped(droppedIP)
 	})
 
 	clipboardManager = clipboard.NewClipboardManager(ctx, sessionManager, true)
-	clipboardManager.SetAndroidCallback(&androidClipboardProxy{cb})
+	clipboardManager.SetAndroidCallback(cbProxy)
 
 	androidClient = client.NewAndroidClient(ctx, sessionManager)
 	desktopServer = server.NewDesktopServer(sessionManager, clipboardManager)
@@ -52,20 +71,34 @@ func StartupWithCallback(cb BridgeCallback) {
 	go desktopServer.Start("34932")
 }
 
-type androidClipboardProxy struct {
-	cb BridgeCallback
+// 2. DYNAMIC STATE UPDATERS (Callable from Kotlin)
+func SetDeviceName(name string) { mobileDeviceName = name }
+
+func UpdateExposedDir(dir string) {
+	dirMutex.Lock()
+	currentExposedDir = dir
+	dirMutex.Unlock()
 }
 
-func (p *androidClipboardProxy) OnClipboardReceived(data []byte, contentType string) {
-	p.cb.OnClipboardDataReceived(data, contentType)
+func getExposedDir() string {
+	dirMutex.RLock()
+	defer dirMutex.RUnlock()
+	return currentExposedDir
+}
+
+func ResolveConnection(ip string, accept bool) {
+	prMutex.Lock()
+	if ch, exists := pendingRequests[ip]; exists {
+		ch <- accept
+	}
+	prMutex.Unlock()
 }
 
 func RequestConnection(ip string, port string) (string, error) {
-	return androidClient.RequestConnection(ip, port)
+	return androidClient.RequestConnection(ip, port, mobileDeviceName)
 }
 
 func DisconnectDevice(ip string) {
-	// FIX: Fire a polite disconnect signal to the PC so it drops instantly!
 	token := sessionManager.GetOutboundToken(ip)
 	if token != "" {
 		req, _ := http.NewRequest("POST", fmt.Sprintf("http://%s:34931/api/disconnect", ip), nil)
@@ -76,47 +109,33 @@ func DisconnectDevice(ip string) {
 	sessionManager.RemoveSession(ip)
 }
 
-func GetSessionToken(ip string) string {
-	return sessionManager.GetOutboundToken(ip)
-}
-
+func GetSessionToken(ip string) string { return sessionManager.GetOutboundToken(ip) }
 func ShareMobileClipboard(ip string, port string, data []byte, contentType string) error {
 	return clipboardManager.ShareMobileData(ip, port, data, contentType)
 }
-
 func GetRemoteFilesJson(ip string, port string, path string) (string, error) {
 	result, err := androidClient.GetRemoteFiles(ip, port, path)
 	if err != nil {
 		return "", err
 	}
-
 	jsonBytes, err := json.Marshal(result)
-	if err != nil {
-		return "", err
-	}
-
-	return string(jsonBytes), nil
+	return string(jsonBytes), err
 }
-
 func MakeDirectory(ip string, port string, dir string, name string) error {
 	return androidClient.MakeDirectory(ip, port, dir, name)
 }
 
-// ─── NATIVE MOBILE BACKEND SERVER ──────────────────────────────────────────
-
-func StartMobileServer(exposedDir string) {
+// 3. UPDATED MOBILE BACKEND
+func StartMobileServer() {
 	go func() {
 		mux := http.NewServeMux()
 
-		// 1. AUTH MIDDLEWARE (Validates the PC's token & strips IPv6 wrapper)
 		authMiddleware := func(next http.HandlerFunc) http.HandlerFunc {
 			return func(w http.ResponseWriter, r *http.Request) {
 				clientIP, _, err := net.SplitHostPort(r.RemoteAddr)
 				if err != nil {
 					clientIP = r.RemoteAddr
 				}
-
-				// FIX: Strip the Android IPv4-mapped IPv6 prefix so the session matches!
 				clientIP = strings.TrimPrefix(clientIP, "::ffff:")
 				if clientIP == "::1" {
 					clientIP = "127.0.0.1"
@@ -131,74 +150,110 @@ func StartMobileServer(exposedDir string) {
 			}
 		}
 
-		// 2. DISCOVERY ROUTE
 		mux.HandleFunc("/api/identify", func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(models.DeviceIdentity{
-				DeviceName: "Android Phone",
-				OS:         "android",
-				Type:       "mobile",
-				Port:       "34931",
+				DeviceName: mobileDeviceName, OS: "android", Type: "mobile", Port: "34931",
 			})
 		})
 
-		// 3. HANDSHAKE / TOKEN EXCHANGE
+		// 4. ADDED UI PROMPT AND REVERSE HEARTBEAT!
 		mux.HandleFunc("/api/connect", func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			var req models.ConnectionRequest
 			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-				http.Error(w, "Bad Request", http.StatusBadRequest)
 				return
 			}
 
-			clientIP, _, err := net.SplitHostPort(r.RemoteAddr)
-			if err != nil {
-				clientIP = r.RemoteAddr
-			}
-
-			// FIX: Strip the IPv6 prefix here too!
+			clientIP, _, _ := net.SplitHostPort(r.RemoteAddr)
 			clientIP = strings.TrimPrefix(clientIP, "::ffff:")
-			if clientIP == "::1" {
-				clientIP = "127.0.0.1"
+
+			decisionChan := make(chan bool)
+			prMutex.Lock()
+			pendingRequests[clientIP] = decisionChan
+			prMutex.Unlock()
+
+			// Tell Kotlin to pop up the Accept/Reject Dialog
+			if cbProxy != nil && cbProxy.cb != nil {
+				cbProxy.cb.OnConnectionRequested(clientIP, req.DeviceName)
 			}
 
-			tokenForA := sessionManager.GenerateToken()
-			sessionManager.RegisterSession(clientIP, tokenForA, req.TokenForB)
+			select {
+			case accepted := <-decisionChan:
+				if accepted {
+					tokenForA := sessionManager.GenerateToken()
+					sessionManager.RegisterSession(clientIP, tokenForA, req.TokenForB)
 
-			json.NewEncoder(w).Encode(models.ConnectionResponse{
-				Accepted:  true,
-				TokenForA: tokenForA,
-			})
+					// KEEP DESKTOP ALIVE! Send reverse ping
+					go func(ip, port, token string) {
+						for {
+							time.Sleep(5 * time.Second)
+							if sessionManager.GetOutboundToken(ip) == "" {
+								break
+							}
+							pingReq, _ := http.NewRequest("GET", fmt.Sprintf("http://%s:%s/api/ping", ip, port), nil)
+							pingReq.Header.Set("Authorization", "Bearer "+token)
+							client := http.Client{Timeout: 3 * time.Second}
+							resp, err := client.Do(pingReq)
+
+							if err != nil || resp.StatusCode != http.StatusOK {
+								sessionManager.RemoveSession(ip)
+
+								// ── FIX: Explicitly force the Kotlin UI to drop! ──
+								if cbProxy != nil && cbProxy.cb != nil {
+									cbProxy.cb.OnDeviceDropped(ip)
+								}
+								break
+							}
+						}
+					}(clientIP, req.Port, req.TokenForB)
+
+					json.NewEncoder(w).Encode(models.ConnectionResponse{
+						Accepted: true, TokenForA: tokenForA, DeviceName: mobileDeviceName,
+					})
+				} else {
+					json.NewEncoder(w).Encode(models.ConnectionResponse{Accepted: false})
+				}
+			case <-time.After(30 * time.Second):
+				json.NewEncoder(w).Encode(models.ConnectionResponse{Accepted: false})
+			}
+
+			prMutex.Lock()
+			delete(pendingRequests, clientIP)
+			prMutex.Unlock()
 		})
 
-		// 4. HEARTBEAT
-		mux.HandleFunc("/api/ping", authMiddleware(func(w http.ResponseWriter, r *http.Request) {
+		mux.HandleFunc("/api/ping", authMiddleware(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) }))
+		mux.HandleFunc("/api/disconnect", authMiddleware(func(w http.ResponseWriter, r *http.Request) {
+			clientIP, _, _ := net.SplitHostPort(r.RemoteAddr)
+			clientIP = strings.TrimPrefix(clientIP, "::ffff:")
+
+			// Remove the session from the backend
+			sessionManager.RemoveSession(clientIP)
+
+			// ── FIX: Explicitly force the Kotlin UI to drop! ──
+			if cbProxy != nil && cbProxy.cb != nil {
+				cbProxy.cb.OnDeviceDropped(clientIP)
+			}
+
 			w.WriteHeader(http.StatusOK)
 		}))
 
-		// 5. LIST FILES
+		// 5. USING DYNAMIC EXPOSED DIRECTORY FOR ALL FILES
 		mux.HandleFunc("/api/files/list", authMiddleware(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
-
 			requestedPath := r.URL.Query().Get("path")
-			if requestedPath == "" || requestedPath == "/" {
+			if requestedPath == "/" {
 				requestedPath = ""
 			}
-
 			if strings.Contains(requestedPath, "..") {
-				http.Error(w, "Invalid path", http.StatusForbidden)
 				return
 			}
 
-			fullPath := filepath.Join(exposedDir, requestedPath)
+			fullPath := filepath.Join(getExposedDir(), requestedPath)
 			entries, err := os.ReadDir(fullPath)
-
 			if err != nil {
-				json.NewEncoder(w).Encode(map[string]interface{}{
-					"path":   requestedPath,
-					"parent": filepath.Dir(requestedPath),
-					"files":  []models.FileInfo{},
-				})
+				json.NewEncoder(w).Encode(map[string]interface{}{"path": requestedPath, "parent": filepath.Dir(requestedPath), "files": []models.FileInfo{}})
 				return
 			}
 
@@ -208,21 +263,12 @@ func StartMobileServer(exposedDir string) {
 				if err != nil {
 					continue
 				}
-
 				relPath := e.Name()
 				if requestedPath != "" {
 					relPath = requestedPath + "/" + e.Name()
 				}
-
-				files = append(files, models.FileInfo{
-					Name:    e.Name(),
-					Path:    relPath,
-					Size:    info.Size(),
-					IsDir:   e.IsDir(),
-					ModTime: info.ModTime().Format("2006-01-02 15:04"),
-				})
+				files = append(files, models.FileInfo{Name: e.Name(), Path: relPath, Size: info.Size(), IsDir: e.IsDir(), ModTime: info.ModTime().Format("2006-01-02 15:04")})
 			}
-
 			parent := filepath.Dir(requestedPath)
 			if requestedPath == "" {
 				parent = ""
@@ -230,85 +276,52 @@ func StartMobileServer(exposedDir string) {
 			if files == nil {
 				files = []models.FileInfo{}
 			}
-
-			json.NewEncoder(w).Encode(map[string]interface{}{
-				"path":   requestedPath,
-				"parent": parent,
-				"files":  files,
-			})
+			json.NewEncoder(w).Encode(map[string]interface{}{"path": requestedPath, "parent": parent, "files": files})
 		}))
 
-		// 6. DOWNLOAD
 		mux.HandleFunc("/api/files/download", authMiddleware(func(w http.ResponseWriter, r *http.Request) {
 			requestedPath := r.URL.Query().Get("path")
 			if strings.Contains(requestedPath, "..") {
-				http.Error(w, "Invalid path", http.StatusForbidden)
 				return
 			}
-			fullPath := filepath.Join(exposedDir, requestedPath)
-			http.ServeFile(w, r, fullPath)
+			http.ServeFile(w, r, filepath.Join(getExposedDir(), requestedPath))
 		}))
 
-		// 7. UPLOAD
 		mux.HandleFunc("/api/files/upload", authMiddleware(func(w http.ResponseWriter, r *http.Request) {
 			r.ParseMultipartForm(10 << 20)
 			dir := r.URL.Query().Get("dir")
-
 			file, handler, err := r.FormFile("files")
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
+			if err != nil || strings.Contains(dir, "..") {
 				return
 			}
 			defer file.Close()
-
-			if strings.Contains(dir, "..") {
-				http.Error(w, "Invalid path", http.StatusForbidden)
-				return
-			}
-
-			destDir := filepath.Join(exposedDir, dir)
+			destDir := filepath.Join(getExposedDir(), dir)
 			os.MkdirAll(destDir, 0755)
-
-			destPath := filepath.Join(destDir, handler.Filename)
-			dst, err := os.Create(destPath)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
+			dst, _ := os.Create(filepath.Join(destDir, handler.Filename))
 			defer dst.Close()
-
 			io.Copy(dst, file)
 			w.WriteHeader(http.StatusOK)
 		}))
 
-		// 8. MKDIR
 		mux.HandleFunc("/api/files/mkdir", authMiddleware(func(w http.ResponseWriter, r *http.Request) {
 			dir := r.URL.Query().Get("dir")
 			name := r.URL.Query().Get("name")
 			if strings.Contains(dir, "..") || strings.Contains(name, "..") {
-				http.Error(w, "Invalid path", http.StatusForbidden)
 				return
 			}
-			os.MkdirAll(filepath.Join(exposedDir, dir, name), 0755)
+			os.MkdirAll(filepath.Join(getExposedDir(), dir, name), 0755)
 			w.WriteHeader(http.StatusOK)
 		}))
 
-		// 9. CLIPBOARD RECEIVER
 		mux.HandleFunc("/api/clipboard/share", authMiddleware(func(w http.ResponseWriter, r *http.Request) {
-			if r.Method != http.MethodPost {
-				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-				return
-			}
 			clipboardManager.HandleClipboardPost(w, r)
 		}))
 
-		// 10. CORS MIDDLEWARE
 		corsHandler := func(next http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("Access-Control-Allow-Origin", "*")
 				w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 				w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
-
 				if r.Method == "OPTIONS" {
 					w.WriteHeader(http.StatusOK)
 					return
@@ -317,11 +330,7 @@ func StartMobileServer(exposedDir string) {
 			})
 		}
 
-		fmt.Println("Starting Native Mobile API Server on port 34931, exposing:", exposedDir)
-		err := http.ListenAndServe(":34931", corsHandler(mux))
-		if err != nil {
-			fmt.Println("Mobile server crashed:", err)
-		}
+		http.ListenAndServe(":34931", corsHandler(mux))
 	}()
 }
 

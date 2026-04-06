@@ -1,22 +1,35 @@
 package com.xrontrix.lansync.ui.screens
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.scale
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.key.*
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
@@ -31,19 +44,24 @@ fun HomeScreen(
     isNetworkAvailable: Boolean,
     localIP: String,
     activeDeviceIP: String?,
+    activeDeviceOS: String,
     recentDevices: List<RecentDevice>,
     isConnecting: Boolean,
-    onConnect: (String) -> Unit,
+    onConnect: (String, (Boolean) -> Unit) -> Unit,
     onDisconnect: () -> Unit,
     onRemoveRecentDevice: (String) -> Unit
 ) {
-    var ipInput by remember { mutableStateOf("") }
+    val focusRequesters = remember { List(4) { FocusRequester() } }
+    var ipSegments by remember { mutableStateOf(listOf("", "", "", "")) }
+    val isIpComplete = ipSegments.all { it.isNotEmpty() }
+    val fullIp = ipSegments.joinToString(".")
 
     Column(
         modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Spacer(modifier = Modifier.height(20.dp))
+
         Text(
             text = buildAnnotatedString {
                 withStyle(style = SpanStyle(color = Color(0xFF3d4d63))) { append("Lan") }
@@ -51,63 +69,147 @@ fun HomeScreen(
             },
             fontSize = 28.sp, fontWeight = FontWeight.Black, letterSpacing = 4.sp
         )
-        Text(text = deviceName, fontSize = 14.sp, color = TextMuted)
+
+        Spacer(modifier = Modifier.height(12.dp))
 
         Surface(
-            color = Panel, shape = RoundedCornerShape(8.dp), modifier = Modifier.padding(vertical = 12.dp)
+            color = Panel, shape = RoundedCornerShape(8.dp),
+            border = BorderStroke(1.dp, Surface)
         ) {
-            Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                Box(modifier = Modifier.size(8.dp).background(if (isNetworkAvailable) GreenAccent else RedAccent, RoundedCornerShape(4.dp)))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(text = if (isNetworkAvailable) "IP: $localIP" else "No Network", fontSize = 12.sp, color = TextMuted, fontFamily = FontFamily.Monospace)
-            }
+            Text(
+                text = deviceName, fontSize = 13.sp, color = TextPrimary,
+                fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+            )
         }
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(16.dp))
+
+        val infiniteTransition = rememberInfiniteTransition(label = "ping")
+        val pingScale by infiniteTransition.animateFloat(
+            initialValue = 1f, targetValue = 2.5f,
+            animationSpec = infiniteRepeatable(animation = tween(1200, easing = LinearOutSlowInEasing), repeatMode = RepeatMode.Restart),
+            label = "scale"
+        )
+        val pingAlpha by infiniteTransition.animateFloat(
+            initialValue = 0.7f, targetValue = 0f,
+            animationSpec = infiniteRepeatable(animation = tween(1200, easing = LinearOutSlowInEasing), repeatMode = RepeatMode.Restart),
+            label = "alpha"
+        )
+
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(14.dp)) {
+                if (isNetworkAvailable) {
+                    Box(modifier = Modifier.size(8.dp).scale(pingScale).alpha(pingAlpha).background(GreenAccent, CircleShape))
+                    Box(modifier = Modifier.size(8.dp).background(GreenAccent, CircleShape))
+                } else {
+                    Box(modifier = Modifier.size(8.dp).background(RedAccent, CircleShape))
+                }
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = if (isNetworkAvailable) localIP else "No Network",
+                fontSize = 14.sp, color = TextMuted, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold
+            )
+        }
+
+        // Only push the Disconnected Card to the center of the screen
+        if (!isNetworkAvailable) Spacer(modifier = Modifier.weight(1f)) else Spacer(modifier = Modifier.height(24.dp))
 
         if (!isNetworkAvailable) {
             Card(
                 colors = CardDefaults.cardColors(containerColor = RedAccent.copy(alpha = 0.1f)),
-                border = androidx.compose.foundation.BorderStroke(1.dp, RedAccent.copy(alpha = 0.3f)),
+                border = BorderStroke(1.dp, RedAccent.copy(alpha = 0.3f)),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Column(modifier = Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                // Properly centered content inside the card
+                Column(modifier = Modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(Icons.Filled.WifiOff, contentDescription = "No Wifi", tint = RedAccent, modifier = Modifier.size(40.dp))
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Text("Network Disconnected", color = TextPrimary, fontWeight = FontWeight.Bold)
-                    Text("Please connect to Wi-Fi to use LanSync.", color = TextMuted, textAlign = TextAlign.Center, fontSize = 13.sp)
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text("Network Disconnected", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("Please connect to a network to use LanSync.", color = TextMuted, textAlign = TextAlign.Center, fontSize = 13.sp)
                 }
             }
         } else {
             Card(
                 colors = CardDefaults.cardColors(containerColor = Panel),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Surface),
+                border = BorderStroke(1.dp, Surface),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Column(modifier = Modifier.padding(20.dp)) {
+                Column(modifier = Modifier.fillMaxWidth().padding(20.dp)) {
                     Text("Connect to Device", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                    Spacer(modifier = Modifier.height(12.dp))
-                    OutlinedTextField(
-                        value = ipInput,
-                        onValueChange = { ipInput = it },
-                        placeholder = { Text("192.168.1.X", color = TextMuted.copy(alpha = 0.5f)) },
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Accent, unfocusedBorderColor = Surface,
-                            focusedContainerColor = BgBase, unfocusedContainerColor = BgBase,
-                            focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary,
-                        ),
-                        singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // ─── BEAUTIFUL SINGLE-BOX 4-PART IP INPUT ───
+                    Surface(
+                        color = BgBase,
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, if (isIpComplete) Accent else Surface),
+                        modifier = Modifier.fillMaxWidth().height(55.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxSize(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            ipSegments.forEachIndexed { index, segment ->
+                                BasicTextField(
+                                    value = segment,
+                                    onValueChange = { newVal ->
+                                        if (newVal.endsWith(".")) {
+                                            if (index < 3 && segment.isNotEmpty()) focusRequesters[index + 1].requestFocus()
+                                        } else {
+                                            val digits = newVal.filter { it.isDigit() }
+                                            if (digits.length <= 3 && (digits.isEmpty() || digits.toInt() in 0..255)) {
+                                                val newList = ipSegments.toMutableList()
+                                                newList[index] = digits
+                                                ipSegments = newList
+                                                if (digits.length == 3 && index < 3) focusRequesters[index + 1].requestFocus()
+                                            }
+                                        }
+                                    },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    singleLine = true,
+                                    cursorBrush = SolidColor(Accent),
+                                    textStyle = TextStyle(
+                                        color = TextPrimary, fontSize = 18.sp,
+                                        fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold,
+                                        textAlign = TextAlign.Center
+                                    ),
+                                    modifier = Modifier
+                                        .width(48.dp)
+                                        .focusRequester(focusRequesters[index])
+                                        .onKeyEvent { event ->
+                                            if (event.key == Key.Backspace && event.type == KeyEventType.KeyDown && segment.isEmpty() && index > 0) {
+                                                focusRequesters[index - 1].requestFocus()
+                                                true
+                                            } else false
+                                        }
+                                )
+                                if (index < 3) {
+                                    Text(".", color = TextMuted.copy(alpha = 0.5f), fontSize = 24.sp, fontWeight = FontWeight.Black, modifier = Modifier.padding(bottom = 6.dp))
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
                     Button(
-                        onClick = { onConnect(ipInput) },
-                        enabled = ipInput.isNotBlank() && !isConnecting,
+                        onClick = {
+                            onConnect(fullIp) { success ->
+                                if (success) ipSegments = listOf("", "", "", "")
+                            }
+                        },
+                        enabled = isIpComplete && !isConnecting,
                         colors = ButtonDefaults.buttonColors(containerColor = Accent.copy(alpha = 0.15f), contentColor = Accent),
                         modifier = Modifier.fillMaxWidth().height(50.dp), shape = RoundedCornerShape(12.dp)
                     ) {
                         if (isConnecting) {
                             CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Accent, strokeWidth = 2.dp)
                         } else {
+                            Icon(Icons.Filled.Link, contentDescription = "Connect", modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
                             Text("Connect", fontWeight = FontWeight.Bold)
                         }
                     }
@@ -115,59 +217,53 @@ fun HomeScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        if (!isNetworkAvailable) Spacer(modifier = Modifier.weight(1f)) else Spacer(modifier = Modifier.height(24.dp))
 
-        // ─── CONNECTED DEVICE ───
-        if (activeDeviceIP != null) {
-            val activeDevice = recentDevices.find { it.ip == activeDeviceIP } ?: RecentDevice(activeDeviceIP, "Connected PC")
-
-            Text("CONNECTED DEVICE", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = GreenAccent, letterSpacing = 1.sp, modifier = Modifier.align(Alignment.Start).padding(start = 4.dp, bottom = 8.dp))
-            Surface(
-                color = GreenAccent.copy(alpha = 0.1f),
-                shape = RoundedCornerShape(12.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, GreenAccent.copy(alpha = 0.3f)),
-                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
-            ) {
-                Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Filled.Computer, contentDescription = "PC", tint = GreenAccent)
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(activeDevice.name, color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                        Text(activeDevice.ip, color = GreenAccent, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
-                    }
-                    IconButton(onClick = onDisconnect, modifier = Modifier.size(32.dp)) {
-                        Icon(Icons.Filled.Close, contentDescription = "Disconnect", tint = RedAccent)
+        // ... Connected & Recent Devices (Unchanged)
+        Column(modifier = Modifier.fillMaxWidth()) {
+            if (activeDeviceIP != null) {
+                val activeDevice = recentDevices.find { it.ip == activeDeviceIP } ?: RecentDevice(activeDeviceIP, "Connected Device")
+                Text("CONNECTED DEVICE", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = GreenAccent, letterSpacing = 1.sp, modifier = Modifier.padding(start = 4.dp, bottom = 8.dp))
+                Surface(
+                    color = GreenAccent.copy(alpha = 0.1f), shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, GreenAccent.copy(alpha = 0.3f)),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+                ) {
+                    Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        DeviceIcon(activeDeviceOS, GreenAccent, Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(activeDevice.name, color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                            Text(activeDevice.ip, color = GreenAccent, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+                        }
+                        IconButton(onClick = onDisconnect, modifier = Modifier.size(32.dp)) {
+                            Icon(Icons.Filled.Close, contentDescription = "Disconnect", tint = RedAccent)
+                        }
                     }
                 }
             }
-        }
 
-        // ─── RECENT DEVICES LIST ───
-        val filteredRecent = recentDevices.filter { it.ip != activeDeviceIP }
-        if (filteredRecent.isNotEmpty()) {
-            Text("RECENT DEVICES", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = TextMuted, letterSpacing = 1.sp, modifier = Modifier.align(Alignment.Start).padding(start = 4.dp, bottom = 8.dp))
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(filteredRecent) { device ->
-                    Surface(
-                        color = Panel, shape = RoundedCornerShape(12.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Surface),
-                        modifier = Modifier.fillMaxWidth().clickable { onConnect(device.ip) }
-                    ) {
-                        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Filled.History, contentDescription = "History", tint = TextMuted)
-                            Spacer(modifier = Modifier.width(16.dp))
-
-                            // Emphasize the Name, deprioritize the IP
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(device.name, color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                                Text(device.ip, color = TextMuted.copy(alpha = 0.7f), fontSize = 11.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.padding(top = 2.dp))
+            val filteredRecent = recentDevices.filter { it.ip != activeDeviceIP }
+            if (filteredRecent.isNotEmpty()) {
+                Text("RECENT DEVICES", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = TextMuted, letterSpacing = 1.sp, modifier = Modifier.padding(start = 4.dp, bottom = 8.dp))
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 16.dp)) {
+                    items(filteredRecent) { device ->
+                        Surface(
+                            color = Panel, shape = RoundedCornerShape(12.dp), border = BorderStroke(1.dp, Surface),
+                            modifier = Modifier.fillMaxWidth().clickable {
+                                onConnect(device.ip) { success -> if (success) ipSegments = listOf("", "", "", "") }
                             }
-
-                            // ─── CLEAR BUTTON ───
-                            IconButton(
-                                onClick = { onRemoveRecentDevice(device.ip) },
-                                modifier = Modifier.size(32.dp)
-                            ) {
-                                Icon(Icons.Filled.Close, contentDescription = "Remove", tint = TextMuted.copy(alpha = 0.5f))
+                        ) {
+                            Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Filled.History, contentDescription = "History", tint = TextMuted)
+                                Spacer(modifier = Modifier.width(16.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(device.name, color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                    Text(device.ip, color = TextMuted.copy(alpha = 0.7f), fontSize = 11.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.padding(top = 2.dp))
+                                }
+                                IconButton(onClick = { onRemoveRecentDevice(device.ip) }, modifier = Modifier.size(32.dp)) {
+                                    Icon(Icons.Filled.Close, contentDescription = "Remove", tint = TextMuted.copy(alpha = 0.5f))
+                                }
                             }
                         }
                     }
