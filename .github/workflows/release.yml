@@ -126,8 +126,8 @@ jobs:
           draft: false
           prerelease: false
           files: |
-            LanSync-macOS-Intel.zip
-            LanSync-macOS-AppleSilicon.zip
+            artifacts/macos-amd64/*.zip
+            artifacts/macos-arm64/*.zip
             LanSync-Linux-amd64.tar.gz
             artifacts/windows-amd64/*.exe
             artifacts/android-apk/*.apk
