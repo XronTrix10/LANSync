@@ -24,13 +24,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xrontrix.lansync.ui.theme.*
+import java.util.Locale
 import kotlin.math.log10
 import kotlin.math.pow
 import androidx.activity.compose.BackHandler
 import androidx.compose.material.icons.automirrored.rounded.InsertDriveFile
 import androidx.compose.material.icons.automirrored.rounded.ListAlt
 import androidx.compose.material.icons.rounded.*
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.ui.res.painterResource
 import com.xrontrix.lansync.R
 
@@ -328,7 +328,11 @@ fun BrowseScreen(
                                 onClick = { showAddMenu = false; filePickerLauncher.launch("*/*") },
                                 leadingIcon = { Icon(Icons.Filled.UploadFile, tint = Accent, contentDescription = null) }
                             )
-                            Divider(color = Surface, modifier = Modifier.padding(vertical = 4.dp))
+                            HorizontalDivider(
+                                modifier = Modifier.padding(vertical = 4.dp),
+                                thickness = DividerDefaults.Thickness,
+                                color = Surface
+                            )
 
                             DropdownMenuItem(
                                 text = { Text("Upload Folder", color = TextPrimary) },
@@ -336,7 +340,11 @@ fun BrowseScreen(
                                 leadingIcon = { Icon(Icons.Filled.Folder, tint = Color(0xFFa78bfa), contentDescription = null) }
                             )
 
-                            Divider(color = Surface, modifier = Modifier.padding(vertical = 4.dp))
+                            HorizontalDivider(
+                                modifier = Modifier.padding(vertical = 4.dp),
+                                thickness = DividerDefaults.Thickness,
+                                color = Surface
+                            )
                             DropdownMenuItem(
                                 text = { Text("Create Folder", color = TextPrimary) },
                                 onClick = { showAddMenu = false; showCreateFolderDialog = true },
@@ -417,12 +425,23 @@ fun FileRowItem(file: FileInfo, isSelected: Boolean, onClick: () -> Unit) {
             if (!file.isDir) Text(formatSize(file.size), color = TextMuted.copy(alpha = 0.7f), fontSize = 11.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, modifier = Modifier.padding(top = 2.dp))
         }
     }
-    Divider(color = Panel, modifier = Modifier.padding(start = 60.dp))
+    HorizontalDivider(
+        modifier = Modifier.padding(start = 60.dp),
+        thickness = DividerDefaults.Thickness,
+        color = Panel
+    )
 }
 
 fun formatSize(size: Long): String {
     if (size <= 0) return "0 B"
+
     val units = arrayOf("B", "KB", "MB", "GB", "TB")
     val digitGroups = (log10(size.toDouble()) / log10(1024.0)).toInt()
-    return String.format("%.1f %s", size / 1024.0.pow(digitGroups.toDouble()), units[digitGroups])
+
+    return String.format(
+        Locale.US,
+        "%.1f %s",
+        size / 1024.0.pow(digitGroups.toDouble()),
+        units[digitGroups]
+    )
 }
