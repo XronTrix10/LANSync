@@ -31,6 +31,8 @@ import androidx.compose.material.icons.automirrored.rounded.InsertDriveFile
 import androidx.compose.material.icons.automirrored.rounded.ListAlt
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.ui.res.painterResource
+import com.xrontrix.lansync.R
 
 data class FileInfo(val name: String, val path: String, val size: Long, val isDir: Boolean)
 
@@ -224,10 +226,6 @@ fun BrowseScreen(
                         }
                         Spacer(modifier = Modifier.width(12.dp))
                         Text("${selectedFiles.size} selected", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.weight(1f))
-                        IconButton(
-                            onClick = { onDownloadFiles(selectedFiles.toList()); selectedFiles = emptySet() },
-                            modifier = Modifier.size(32.dp)
-                        ) { Icon(Icons.Filled.Download, contentDescription = "Download", tint = Accent) }
                     }
                 }
             } else {
@@ -289,6 +287,7 @@ fun BrowseScreen(
             }
         }
 
+        // ─── FLOATING ACTION BUTTONS ───
         Column(modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp), horizontalAlignment = Alignment.End) {
             SmallFloatingActionButton(
                 onClick = onShareClipboardClick,
@@ -298,41 +297,52 @@ fun BrowseScreen(
                 Icon(Icons.Filled.ContentPaste, contentDescription = "Share Clipboard")
             }
 
-            var showAddMenu by remember { mutableStateOf(false) }
-            Box {
-                FloatingActionButton(onClick = { showAddMenu = true }, containerColor = Accent, contentColor = BgBase, shape = RoundedCornerShape(16.dp)) {
-                    Icon(Icons.Filled.Add, contentDescription = "Add Actions")
+            // ── Dynamic FAB Swap Logic ──
+            if (selectedFiles.isNotEmpty()) {
+                FloatingActionButton(
+                    onClick = {
+                        onDownloadFiles(selectedFiles.toList())
+                        selectedFiles = emptySet()
+                    },
+                    containerColor = GreenAccent,
+                    contentColor = BgBase,
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.download),
+                        contentDescription = "Download",
+                        modifier = Modifier.size(24.dp)
+                    )
                 }
+            } else {
+                var showAddMenu by remember { mutableStateOf(false) }
+                Box {
+                    FloatingActionButton(onClick = { showAddMenu = true }, containerColor = Accent, contentColor = BgBase, shape = RoundedCornerShape(16.dp)) {
+                        Icon(Icons.Filled.Add, contentDescription = "Add Actions")
+                    }
 
-                MaterialTheme(shapes = MaterialTheme.shapes.copy(extraSmall = RoundedCornerShape(16.dp))) {
-                    DropdownMenu(expanded = showAddMenu, onDismissRequest = { showAddMenu = false }, modifier = Modifier.background(Panel)) {
-                        DropdownMenuItem(
-                            text = { Text("Upload Files", color = TextPrimary) },
-                            onClick = { showAddMenu = false; filePickerLauncher.launch("*/*") },
-                            leadingIcon = { Icon(Icons.Filled.UploadFile, tint = Accent, contentDescription = null) }
-                        )
-                        HorizontalDivider(
-                            modifier = Modifier.padding(vertical = 4.dp),
-                            thickness = DividerDefaults.Thickness,
-                            color = Surface
-                        )
+                    MaterialTheme(shapes = MaterialTheme.shapes.copy(extraSmall = RoundedCornerShape(16.dp))) {
+                        DropdownMenu(expanded = showAddMenu, onDismissRequest = { showAddMenu = false }, modifier = Modifier.background(Panel)) {
+                            DropdownMenuItem(
+                                text = { Text("Upload File", color = TextPrimary) },
+                                onClick = { showAddMenu = false; filePickerLauncher.launch("*/*") },
+                                leadingIcon = { Icon(Icons.Filled.UploadFile, tint = Accent, contentDescription = null) }
+                            )
+                            Divider(color = Surface, modifier = Modifier.padding(vertical = 4.dp))
 
-                        DropdownMenuItem(
-                            text = { Text("Upload Folder", color = TextPrimary) },
-                            onClick = { showAddMenu = false; folderPickerLauncher.launch(null) },
-                            leadingIcon = { Icon(Icons.Filled.Folder, tint = Color(0xFFa78bfa), contentDescription = null) }
-                        )
+                            DropdownMenuItem(
+                                text = { Text("Upload Folder", color = TextPrimary) },
+                                onClick = { showAddMenu = false; folderPickerLauncher.launch(null) },
+                                leadingIcon = { Icon(Icons.Filled.Folder, tint = Color(0xFFa78bfa), contentDescription = null) }
+                            )
 
-                        HorizontalDivider(
-                            modifier = Modifier.padding(vertical = 4.dp),
-                            thickness = DividerDefaults.Thickness,
-                            color = Surface
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Create Folder", color = TextPrimary) },
-                            onClick = { showAddMenu = false; showCreateFolderDialog = true },
-                            leadingIcon = { Icon(Icons.Filled.CreateNewFolder, tint = GreenAccent, contentDescription = null) }
-                        )
+                            Divider(color = Surface, modifier = Modifier.padding(vertical = 4.dp))
+                            DropdownMenuItem(
+                                text = { Text("Create Folder", color = TextPrimary) },
+                                onClick = { showAddMenu = false; showCreateFolderDialog = true },
+                                leadingIcon = { Icon(Icons.Filled.CreateNewFolder, tint = GreenAccent, contentDescription = null) }
+                            )
+                        }
                     }
                 }
             }

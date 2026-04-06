@@ -48,6 +48,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.foundation.shape.CircleShape
 import androidx.core.content.edit
+import androidx.core.app.NotificationCompat
 
 class MainActivity : ComponentActivity(), BridgeCallback {
 
@@ -593,26 +594,104 @@ class MainActivity : ComponentActivity(), BridgeCallback {
         val token = Bridge.getSessionToken(ip)
         if (token.isEmpty()) return
 
-        val downloadManager = getSystemService(Context.DOWNLOAD_SERVICE) as android.app.DownloadManager
-        var startedCount = 0
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+        val channelId = "LanSyncDownloads"
 
-        for (file in files) {
-            try {
-                val encodedPath = java.net.URLEncoder.encode(file.path, "UTF-8")
-                val url = "http://$ip:34931/api/files/download?path=$encodedPath"
-
-                val request = android.app.DownloadManager.Request(url.toUri())
-                    .setTitle(file.name)
-                    .setDescription("Downloading via LanSync")
-                    .setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-                    .setDestinationInExternalPublicDir(android.os.Environment.DIRECTORY_DOWNLOADS, "LanSync/${file.name}")
-                    .addRequestHeader("Authorization", "Bearer $token")
-
-                downloadManager.enqueue(request)
-                startedCount++
-            } catch (e: Exception) { e.printStackTrace() }
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            val channel = android.app.NotificationChannel(channelId, "Downloads", android.app.NotificationManager.IMPORTANCE_LOW)
+            notificationManager.createNotificationChannel(channel)
         }
-        Toast.makeText(this, "Started $startedCount download(s)", Toast.LENGTH_SHORT).show()
+
+        Toast.makeText(this, "Starting ${files.size} download(s)...", Toast.LENGTH_SHORT).show()
+
+        Thread {
+            var successCount = 0
+            for ((index, file) in files.withIndex()) {
+                val notificationId = 2000 + index // Unique ID per file
+
+                val builder = NotificationCompat.Builder(this, channelId)
+                    .setContentTitle("Downloading ${file.name}")
+                    .setSmallIcon(R.drawable.folder_outlined) // Uses your modern icon
+                    .setOngoing(true)
+                    .setOnlyAlertOnce(true)
+
+                try {
+                    val encodedPath = URLEncoder.encode(file.path, "UTF-8").replace("+", "%20")
+                    val url = URL("http://$ip:34931/api/files/download?path=$encodedPath")
+                    val connection = url.openConnection() as HttpURLConnection
+                    connection.setRequestProperty("Authorization", "Bearer $token")
+                    connection.connect()
+
+                    if (connection.responseCode != 200) throw Exception("Server returned ${connection.responseCode}")
+
+                    val fileLength = connection.contentLengthLong
+
+                    val downloadsDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS)
+                    val lanSyncDir = java.io.File(downloadsDir, "LanSync")
+                    if (!lanSyncDir.exists()) lanSyncDir.mkdirs()
+
+                    val outputFile = java.io.File(lanSyncDir, file.name)
+                    val input = connection.inputStream
+                    val output = java.io.FileOutputStream(outputFile)
+
+                    val data = ByteArray(8192)
+                    var total: Long = 0
+                    var count: Int
+                    var lastUpdateTime = System.currentTimeMillis()
+                    var lastUpdateBytes: Long = 0
+
+                    while (input.read(data).also { count = it } != -1) {
+                        total += count
+                        output.write(data, 0, count)
+
+                        val currentTime = System.currentTimeMillis()
+                        // ── Update Notification every 500ms for smooth UI ──
+                        if (currentTime - lastUpdateTime > 500) {
+                            val timeDiff = (currentTime - lastUpdateTime) / 1000.0
+                            val bytesDiff = total - lastUpdateBytes
+                            val speedBps = bytesDiff / timeDiff
+
+                            val progressPercent = if (fileLength > 0) ((total.toDouble() / fileLength.toDouble()) * 100).toInt() else 0
+
+                            val speedStr = com.xrontrix.lansync.ui.screens.formatSize(speedBps.toLong()) + "/s"
+                            val totalStr = com.xrontrix.lansync.ui.screens.formatSize(total)
+                            val sizeStr = if (fileLength > 0) com.xrontrix.lansync.ui.screens.formatSize(fileLength) else "Unknown"
+
+                            builder.setProgress(100, progressPercent, fileLength <= 0L)
+                            builder.setContentText("$totalStr / $sizeStr • $speedStr")
+                            notificationManager.notify(notificationId, builder.build())
+
+                            lastUpdateTime = currentTime
+                            lastUpdateBytes = total
+                        }
+                    }
+                    output.flush()
+                    output.close()
+                    input.close()
+
+                    // ── Success State ──
+                    builder.setContentTitle("Download Complete")
+                        .setContentText(file.name)
+                        .setProgress(0, 0, false)
+                        .setOngoing(false)
+                    notificationManager.notify(notificationId, builder.build())
+                    successCount++
+
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    // ── Failure State ──
+                    builder.setContentTitle("Download Failed")
+                        .setContentText("${file.name}: ${e.message}")
+                        .setProgress(0, 0, false)
+                        .setOngoing(false)
+                    notificationManager.notify(notificationId, builder.build())
+                }
+            }
+
+            runOnUiThread {
+                Toast.makeText(this@MainActivity, "Saved $successCount file(s) to Downloads/LanSync", Toast.LENGTH_LONG).show()
+            }
+        }.start()
     }
 
     private fun checkAndRequestStoragePermissions() {
