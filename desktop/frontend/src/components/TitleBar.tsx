@@ -1,4 +1,4 @@
-import { Copy, Minus, Plus, Square, X } from "lucide-react";
+import { Copy, Minus, Square, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
   Environment,
@@ -15,78 +15,34 @@ export function TitleBar() {
   const [isMaximised, setIsMaximised] = useState<boolean>(false);
 
   useEffect(() => {
-    // 1. Get the OS platform
     Environment().then((env) => setOs(env.platform));
 
-    // 2. Function to check window state with Wails
     const checkMaximized = () => {
       WindowIsMaximised().then(setIsMaximised);
     };
 
-    // Check immediately on mount
     checkMaximized();
-
-    // 3. Listen to window resizes (catches dragging to screen edge & double clicks)
     window.addEventListener("resize", checkMaximized);
     return () => window.removeEventListener("resize", checkMaximized);
   }, []);
 
   const isMac = os === "darwin";
 
+  if (os === "") return null;
+
   return (
     <div
-      className={`h-10 w-full bg-bg-base flex items-center shrink-0 select-none border-b border-[#1e2535] relative ${
-        isMac ? "justify-start" : "justify-between"
+      // ── Added pl-[80px] for Mac to avoid the native traffic lights! ──
+      className={`h-8 w-full bg-bg-base flex items-center shrink-0 select-none border-b border-[#1e2535] relative ${
+        isMac ? "pl-20 justify-start" : "px-4 justify-between"
       }`}
       data-wails-drag
       style={{ "--wails-draggable": "drag" } as any}
-      onDoubleClick={WindowToggleMaximise} // Optional: Native feel for double-clicking title bar!
+      onDoubleClick={WindowToggleMaximise}
     >
-      {/* ── MAC CONTROLS (Left side) ── */}
-      {isMac && (
-        <div
-          className="flex items-center h-full px-4 gap-2"
-          style={{ "--wails-draggable": "no-drag" } as any}
-        >
-          <button
-            onClick={Quit}
-            className="w-3 h-3 rounded-full bg-[#ff5f56] border border-[#e0443e] flex items-center justify-center transition-colors"
-          >
-            <X
-              size={8}
-              strokeWidth={3}
-              className="opacity-0 hover:opacity-100 text-[#4d0000]"
-            />
-          </button>
-
-          <button
-            onClick={WindowMinimise}
-            className="w-3 h-3 rounded-full bg-[#ffbd2e] border border-[#dea123] flex items-center justify-center transition-colors"
-          >
-            <Minus
-              size={8}
-              strokeWidth={3}
-              className="opacity-0 hover:opacity-100 text-[#5a3e00]"
-            />
-          </button>
-
-          <button
-            onClick={WindowToggleMaximise}
-            className="w-3 h-3 rounded-full bg-[#27c93f] border border-[#1aab29] flex items-center justify-center transition-colors"
-          >
-            <Plus
-              size={8}
-              strokeWidth={3}
-              className="opacity-0 hover:opacity-100 text-[#004d09]"
-            />
-          </button>
-        </div>
-      )}
-
       {/* ── TITLE / LOGO AREA ── */}
-      <div
-        className={`flex items-center gap-2.5 ${isMac ? "pl-0 pr-4" : "px-4"}`}
-      >
+      {/* ── FIX: Added mb-1.5 for Mac to perfectly align with 14px traffic lights! ── */}
+      <div className={`flex items-center gap-2.5`}>
         <img
           src={logoImage}
           alt="LanSync Logo"
@@ -100,7 +56,8 @@ export function TitleBar() {
       </div>
 
       {/* ── WINDOWS / LINUX CONTROLS (Right side) ── */}
-      {!isMac && os !== "" && (
+      {/* (Hidden entirely on Mac because the OS handles the window buttons natively) */}
+      {!isMac && (
         <div
           className="flex h-full"
           style={{ "--wails-draggable": "no-drag" } as any}
@@ -116,7 +73,6 @@ export function TitleBar() {
             onClick={WindowToggleMaximise}
             className="h-full aspect-square flex items-center justify-center text-[#8090a8] hover:bg-panel hover:text-[#dde4f0] transition-colors"
           >
-            {/* Swap the icon based on the true state of the window */}
             {isMaximised ? <Copy size={12} /> : <Square size={12} />}
           </button>
 

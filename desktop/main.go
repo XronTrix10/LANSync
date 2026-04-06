@@ -2,10 +2,12 @@ package main
 
 import (
 	"embed"
+	"runtime"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+	"github.com/wailsapp/wails/v2/pkg/options/mac"
 )
 
 //go:embed all:frontend/dist
@@ -14,13 +16,14 @@ var assets embed.FS
 func main() {
 	// Create an instance of the app structure
 	app := NewApp()
+	isMac := runtime.GOOS == "darwin"
 
 	// Create application with options
 	err := wails.Run(&options.App{
 		Title:     "LanSync",
 		Width:     1024,
 		Height:    768,
-		Frameless: true,
+		Frameless: !isMac,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
@@ -31,7 +34,9 @@ func main() {
 		// --------------------------------------------------
 		DragAndDrop: &options.DragAndDrop{
 			EnableFileDrop: true,
-			// DisableWebViewDrop: true, // CRITICAL: Stops the browser from "opening" the file and crashing the UI
+		},
+		Mac: &mac.Options{
+			TitleBar: mac.TitleBarHidden(),
 		},
 		Bind: []interface{}{
 			app,
