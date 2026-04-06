@@ -1,0 +1,43 @@
+package com.xrontrix.lansync.ui.theme
+
+import android.app.Activity
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
+
+private val LanSyncColorScheme = darkColorScheme(
+    background = BgBase,
+    surface = Surface,
+    surfaceVariant = Panel,
+    primary = Accent,
+    secondary = GreenAccent,
+    error = RedAccent,
+    onBackground = TextPrimary,
+    onSurface = TextPrimary
+)
+
+@Composable
+fun LansyncTheme(
+    content: @Composable () -> Unit
+) {
+    val view = LocalView.current
+    if (!view.isInEditMode) {
+        SideEffect {
+            val window = (view.context as Activity).window
+            // This makes the Android top status bar and bottom nav bar blend perfectly
+            window.statusBarColor = BgBase.toArgb()
+            window.navigationBarColor = Surface.toArgb()
+            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = false
+        }
+    }
+
+    MaterialTheme(
+        colorScheme = LanSyncColorScheme,
+        typography = Typography, // This pulls from your Type.kt file
+        content = content
+    )
+}
