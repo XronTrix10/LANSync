@@ -3,7 +3,8 @@ package com.xrontrix.lansync.data
 import android.content.Context
 import android.content.SharedPreferences
 
-data class RecentDevice(val ip: String, val name: String)
+// Add the OS field with a default fallback so it doesn't break old saves
+data class RecentDevice(val ip: String, val name: String, val os: String = "windows")
 
 class PreferencesManager(context: Context) {
     private val prefs: SharedPreferences = context.getSharedPreferences("lansync_prefs", Context.MODE_PRIVATE)
@@ -28,7 +29,7 @@ class PreferencesManager(context: Context) {
         if (ipString.isBlank()) return emptyList()
 
         return ipString.split(",").mapNotNull { ip ->
-            val name = prefs.getString("device_name_$ip", "Unknown PC") ?: "Unknown PC"
+            val name = prefs.getString("device_name_$ip", "Unknown Device") ?: "Unknown Device"
             RecentDevice(ip, name)
         }
     }
