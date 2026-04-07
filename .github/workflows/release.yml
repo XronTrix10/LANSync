@@ -73,7 +73,6 @@ jobs:
       - name: Package Windows Installer
         if: runner.os == 'Windows'
         working-directory: ./desktop/build/bin
-        # Smart PowerShell script to gracefully find, rename, and clean up
         run: |
           $installer = Get-ChildItem -Filter "*-installer.exe"
           if ($installer) {
@@ -84,13 +83,56 @@ jobs:
               Rename-Item -Path "LanSync.exe" -NewName "lansync-setup.exe" -Force
           }
 
+      - name: Package Linux .deb
+        if: runner.os == 'Linux'
+        working-directory: ./desktop/build/bin
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          CLEAN_VERSION="${VERSION#v}"
+
+          mkdir -p lansync_deb/usr/bin
+          mkdir -p lansync_deb/usr/share/applications
+          mkdir -p lansync_deb/usr/share/icons/hicolor/512x512/apps
+          mkdir -p lansync_deb/DEBIAN
+
+          # Copy the binary for the .deb, leaving the original intact for the tar.gz
+          cp LanSync lansync_deb/usr/bin/lansync
+          chmod +x lansync_deb/usr/bin/lansync
+
+          cat <<EOF > lansync_deb/DEBIAN/control
+          Package: lansync
+          Version: $CLEAN_VERSION
+          Section: net
+          Priority: optional
+          Architecture: amd64
+          Maintainer: LanSync Developer
+          Description: A blazing-fast, cross-platform local network synchronization tool.
+          EOF
+
+          cat <<EOF > lansync_deb/usr/share/applications/lansync.desktop
+          [Desktop Entry]
+          Name=LanSync
+          Comment=Local file and clipboard sync
+          Exec=/usr/bin/lansync
+          Icon=lansync
+          Terminal=false
+          Type=Application
+          Categories=Network;FileTransfer;Utility;
+          EOF
+
+          cp ../appicon.png lansync_deb/usr/share/icons/hicolor/512x512/apps/lansync.png 2>/dev/null || true
+
+          dpkg-deb --build lansync_deb lansync-linux-amd64.deb
+
       - name: Upload Desktop Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
+          # Uploads zips, installers, .deb files, AND the raw binary (for tarballing)
           path: |
             desktop/build/bin/*.exe
             desktop/build/bin/*.zip
+            desktop/build/bin/*.deb
             desktop/build/bin/LanSync
 
   build-android:
@@ -129,7 +171,7 @@ jobs:
     needs: [build-desktop, build-android]
     runs-on: ubuntu-latest
     permissions:
-      contents: write # CRITICAL: Allows GitHub Actions to create the release
+      contents: write
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -138,8 +180,8 @@ jobs:
 
       - name: Prepare Assets for Release
         run: |
-          # Linux binaries still need to be tarballed to preserve permissions
-          cd artifacts/linux-amd64 && tar -czvf ../../lansync-linux-amd64.tar.gz . && cd ../../
+          # Specifically tarball ONLY the raw executable, ignoring the .deb package
+          cd artifacts/linux-amd64 && tar -czvf ../../lansync-linux-amd64.tar.gz LanSync && cd ../../
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
@@ -152,5 +194,6 @@ jobs:
             artifacts/macos-amd64/lansync-macos-amd64.zip
             artifacts/macos-arm64/lansync-macos-arm64.zip
             lansync-linux-amd64.tar.gz
+            artifacts/linux-amd64/lansync-linux-amd64.deb
             artifacts/windows-amd64/lansync-setup.exe
             artifacts/android-apk/lansync_debug.apk
