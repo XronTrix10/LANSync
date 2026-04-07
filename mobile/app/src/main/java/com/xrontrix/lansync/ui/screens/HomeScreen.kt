@@ -33,6 +33,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.unit.sp
 import com.xrontrix.lansync.data.RecentDevice
 import com.xrontrix.lansync.ui.theme.*
@@ -131,6 +132,10 @@ fun HomeScreen(
                 }
             }
         } else {
+            // ── Track focus state of all 4 inputs ──
+            val focusStates = remember { mutableStateListOf(false, false, false, false) }
+            val isAnyFocused = focusStates.any { it }
+
             Card(
                 colors = CardDefaults.cardColors(containerColor = Panel),
                 border = BorderStroke(1.dp, Surface),
@@ -144,7 +149,8 @@ fun HomeScreen(
                     Surface(
                         color = BgBase,
                         shape = RoundedCornerShape(12.dp),
-                        border = BorderStroke(1.dp, if (isIpComplete) Accent else Surface),
+                        // ── Show border if ANY field is focused OR if the IP is complete ──
+                        border = BorderStroke(1.dp, if (isAnyFocused || isIpComplete) Accent else Surface),
                         modifier = Modifier.fillMaxWidth().height(55.dp)
                     ) {
                         Row(
@@ -179,6 +185,9 @@ fun HomeScreen(
                                     modifier = Modifier
                                         .width(48.dp)
                                         .focusRequester(focusRequesters[index])
+                                        .onFocusChanged { focusState ->
+                                            focusStates[index] = focusState.isFocused
+                                        }
                                         .onKeyEvent { event ->
                                             if (event.key == Key.Backspace && event.type == KeyEventType.KeyDown && segment.isEmpty() && index > 0) {
                                                 focusRequesters[index - 1].requestFocus()
