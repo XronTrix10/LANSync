@@ -1,60 +1,58 @@
 package com.xrontrix.lansync
 
 import android.content.Context
+import android.content.Intent
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkRequest
+import android.net.Uri
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
-import androidx.compose.ui.res.painterResource
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.core.content.edit
+import androidx.core.net.toUri
 import androidx.navigation.compose.*
 import bridge.Bridge
 import bridge.BridgeCallback
 import com.xrontrix.lansync.data.PreferencesManager
 import com.xrontrix.lansync.data.RecentDevice
+import com.xrontrix.lansync.network.FileTransferManager
 import com.xrontrix.lansync.ui.screens.BrowseScreen
 import com.xrontrix.lansync.ui.screens.HomeScreen
-import com.xrontrix.lansync.ui.theme.LansyncTheme
+import com.xrontrix.lansync.ui.screens.SettingsScreen
 import com.xrontrix.lansync.ui.theme.*
 import org.json.JSONArray
 import org.json.JSONObject
-import android.net.Uri
-import android.provider.OpenableColumns
-import java.io.DataOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
-import java.net.URLEncoder
-import android.content.Intent
-import androidx.compose.foundation.background
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.withStyle
-import androidx.core.net.toUri
-import android.provider.DocumentsContract
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
-import androidx.compose.foundation.shape.CircleShape
-import androidx.core.content.edit
-import androidx.core.app.NotificationCompat
 
 class MainActivity : ComponentActivity(), BridgeCallback {
 
     private var isNetworkAvailable = mutableStateOf(false)
     private lateinit var connectivityManager: ConnectivityManager
     private lateinit var prefsManager: PreferencesManager
+    private lateinit var transferManager: FileTransferManager // ── NEW: Transfer Manager
 
     private val activeDeviceIP = mutableStateOf<String?>(null)
     private val isConnecting = mutableStateOf(false)
@@ -95,6 +93,7 @@ class MainActivity : ComponentActivity(), BridgeCallback {
         checkAndRequestStoragePermissions()
 
         prefsManager = PreferencesManager(this)
+        transferManager = FileTransferManager(this)
         recentDevicesState.value = prefsManager.getRecentDevices()
 
         setupNetworkMonitoring()
@@ -128,7 +127,7 @@ class MainActivity : ComponentActivity(), BridgeCallback {
                             Surface(
                                 shape = RoundedCornerShape(24.dp),
                                 color = Panel,
-                                border = androidx.compose.foundation.BorderStroke(1.dp, Accent.copy(alpha = 0.3f)),
+                                border = BorderStroke(1.dp, Accent.copy(alpha = 0.3f)),
                                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
                             ) {
                                 Column(
@@ -138,7 +137,7 @@ class MainActivity : ComponentActivity(), BridgeCallback {
                                     Surface(
                                         shape = CircleShape,
                                         color = Accent.copy(alpha = 0.1f),
-                                        border = androidx.compose.foundation.BorderStroke(1.dp, Accent.copy(alpha = 0.2f)),
+                                        border = BorderStroke(1.dp, Accent.copy(alpha = 0.2f)),
                                         modifier = Modifier.size(64.dp)
                                     ) {
                                         Box(contentAlignment = Alignment.Center) {
@@ -176,7 +175,7 @@ class MainActivity : ComponentActivity(), BridgeCallback {
                                                 activeDeviceIP.value = req.first
                                                 prefsManager.saveRecentDevice(req.first, req.second)
                                                 recentDevicesState.value = prefsManager.getRecentDevices()
-                                                toggleForegroundService(true) // Start the Foreground Service!
+                                                toggleForegroundService(true)
                                                 incomingRequest.value = null
                                                 Toast.makeText(this@MainActivity, "Connected to ${req.second}", Toast.LENGTH_SHORT).show()
                                             },
@@ -260,7 +259,7 @@ class MainActivity : ComponentActivity(), BridgeCallback {
                                 onConnect = { ip, onSuccess ->
                                     connectToDevice(ip) { success ->
                                         if (success) activeDeviceIP.value = ip
-                                        onSuccess(success) // Triggers the IP Field Reset!
+                                        onSuccess(success)
                                     }
                                 },
                                 onDisconnect = {
@@ -294,12 +293,28 @@ class MainActivity : ComponentActivity(), BridgeCallback {
                                 onCreateFolder = { folderName ->
                                     activeDeviceIP.value?.let { ip -> createRemoteFolder(ip, currentPath.value, folderName) }
                                 },
+                                // ── NEW: Transfer Manager Callbacks ──
                                 onUploadFiles = { uris ->
-                                    activeDeviceIP.value?.let { ip -> uploadFilesToDesktop(ip, currentPath.value, uris) }
+                                    activeDeviceIP.value?.let { ip ->
+                                        isLoadingFiles.value = true
+                                        transferManager.uploadFiles(ip, currentPath.value, uris) {
+                                            fetchRemoteFiles(ip, currentPath.value) // Auto-refresh on success!
+                                        }
+                                    }
                                 },
-                                onUploadFolder = { treeUri -> activeDeviceIP.value?.let { ip -> uploadFolderToDesktop(ip, currentPath.value, treeUri) } },
+                                onUploadFolder = { treeUri ->
+                                    activeDeviceIP.value?.let { ip ->
+                                        isLoadingFiles.value = true
+                                        transferManager.uploadFolder(ip, currentPath.value, treeUri,
+                                            onComplete = { fetchRemoteFiles(ip, currentPath.value) },
+                                            onError = { isLoadingFiles.value = false }
+                                        )
+                                    }
+                                },
                                 onDownloadFiles = { selectedFiles ->
-                                    activeDeviceIP.value?.let { ip -> downloadFilesFromDesktop(ip, selectedFiles) }
+                                    activeDeviceIP.value?.let { ip ->
+                                        transferManager.downloadFiles(ip, selectedFiles.toList())
+                                    }
                                 },
                                 onRefresh = {
                                     activeDeviceIP.value?.let { ip -> fetchRemoteFiles(ip, currentPath.value) }
@@ -312,7 +327,7 @@ class MainActivity : ComponentActivity(), BridgeCallback {
                             val savedDownloadUri = sharedPrefs.getString("download_folder", "") ?: ""
                             val savedExposedUri = sharedPrefs.getString("exposed_folder", "") ?: ""
 
-                            com.xrontrix.lansync.ui.screens.SettingsScreen(
+                            SettingsScreen(
                                 currentDeviceName = savedName,
                                 currentDownloadFolderUri = savedDownloadUri,
                                 currentExposedFolderUri = savedExposedUri,
@@ -378,7 +393,7 @@ class MainActivity : ComponentActivity(), BridgeCallback {
                         activeDeviceOS.value = os // Save it to state!
                         prefsManager.saveRecentDevice(ip, connectedDeviceName)
                         recentDevicesState.value = prefsManager.getRecentDevices()
-                        toggleForegroundService(true) // Start the Foreground Service!
+                        toggleForegroundService(true)
                         Toast.makeText(this, "Connected securely!", Toast.LENGTH_SHORT).show()
                         onResult(true)
                     } else {
@@ -482,231 +497,17 @@ class MainActivity : ComponentActivity(), BridgeCallback {
         }.start()
     }
 
-    private fun uploadSingleFile(ip: String, token: String, remotePath: String, uri: Uri, fileName: String): Boolean {
-        return try {
-            val encodedPath = URLEncoder.encode(remotePath, "UTF-8")
-            val url = URL("http://$ip:34931/api/files/upload?dir=$encodedPath")
-            val connection = url.openConnection() as HttpURLConnection
-            val boundary = "Boundary-${System.currentTimeMillis()}"
-
-            connection.requestMethod = "POST"
-            connection.setRequestProperty("Authorization", "Bearer $token")
-            connection.setRequestProperty("Content-Type", "multipart/form-data; boundary=$boundary")
-            connection.doOutput = true
-            connection.setChunkedStreamingMode(1024 * 1024)
-
-            DataOutputStream(connection.outputStream).use { outputStream ->
-                outputStream.writeBytes("--$boundary\r\n")
-                outputStream.writeBytes("Content-Disposition: form-data; name=\"files\"; filename=\"$fileName\"\r\n")
-                outputStream.writeBytes("Content-Type: application/octet-stream\r\n\r\n")
-                contentResolver.openInputStream(uri)?.use { it.copyTo(outputStream) }
-                outputStream.writeBytes("\r\n--$boundary--\r\n")
-                outputStream.flush()
-            }
-            val code = connection.responseCode
-            connection.disconnect()
-            code == 200
-        } catch (e: Exception) { false }
-    }
-
-    private fun uploadFilesToDesktop(ip: String, currentPath: String, uris: List<Uri>) {
-        val token = Bridge.getSessionToken(ip)
-        if (token.isEmpty()) return
-        isLoadingFiles.value = true
-
-        Thread {
-            var successCount = 0
-            for (uri in uris) {
-                var fileName = "upload.file"
-                contentResolver.query(uri, null, null, null, null)?.use { cursor ->
-                    val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                    if (cursor.moveToFirst() && nameIndex >= 0) fileName = cursor.getString(nameIndex)
-                }
-                if (uploadSingleFile(ip, token, currentPath, uri, fileName)) successCount++
-            }
-            runOnUiThread {
-                Toast.makeText(this@MainActivity, "Uploaded $successCount of ${uris.size} files", Toast.LENGTH_SHORT).show()
-                fetchRemoteFiles(ip, currentPath)
-            }
-        }.start()
-    }
-
-    private fun uploadFolderToDesktop(ip: String, currentPath: String, treeUri: Uri) {
-        val token = Bridge.getSessionToken(ip)
-        if (token.isEmpty()) return
-        isLoadingFiles.value = true
-
-        Thread {
-            try {
-                val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, DocumentsContract.getTreeDocumentId(treeUri))
-                var rootFolderName = "UploadedFolder"
-
-                contentResolver.query(DocumentsContract.buildDocumentUriUsingTree(treeUri, DocumentsContract.getTreeDocumentId(treeUri)), null, null, null, null)?.use { cursor ->
-                    if (cursor.moveToFirst()) {
-                        val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                        if (nameIndex >= 0) rootFolderName = cursor.getString(nameIndex)
-                    }
-                }
-
-                Bridge.makeDirectory(ip, "34931", currentPath, rootFolderName)
-                val newRemoteBasePath = if (currentPath == "/") "/$rootFolderName" else "$currentPath/$rootFolderName"
-                var successCount = 0
-
-                fun traverse(uri: Uri, remotePath: String) {
-                    contentResolver.query(uri, null, null, null, null)?.use { cursor ->
-                        val idIndex = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
-                        val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                        val mimeIndex = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_MIME_TYPE)
-
-                        while (cursor.moveToNext()) {
-                            val docId = cursor.getString(idIndex)
-                            val name = cursor.getString(nameIndex)
-                            val mime = cursor.getString(mimeIndex)
-
-                            if (mime == DocumentsContract.Document.MIME_TYPE_DIR) {
-                                Bridge.makeDirectory(ip, "34931", remotePath, name)
-                                val childUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, docId)
-                                traverse(childUri, "$remotePath/$name")
-                            } else {
-                                val fileUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, docId)
-                                if (uploadSingleFile(ip, token, remotePath, fileUri, name)) successCount++
-                            }
-                        }
-                    }
-                }
-
-                traverse(childrenUri, newRemoteBasePath)
-
-                runOnUiThread {
-                    Toast.makeText(this@MainActivity, "Uploaded $successCount files from folder", Toast.LENGTH_SHORT).show()
-                    fetchRemoteFiles(ip, currentPath)
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-                runOnUiThread { Toast.makeText(this@MainActivity, "Folder upload failed", Toast.LENGTH_SHORT).show() }
-            } finally {
-                runOnUiThread { isLoadingFiles.value = false }
-            }
-        }.start()
-    }
-
-    private fun downloadFilesFromDesktop(ip: String, files: List<com.xrontrix.lansync.ui.screens.FileInfo>) {
-        val token = Bridge.getSessionToken(ip)
-        if (token.isEmpty()) return
-
-        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
-        val channelId = "LanSyncDownloads"
-
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-            val channel = android.app.NotificationChannel(channelId, "Downloads", android.app.NotificationManager.IMPORTANCE_LOW)
-            notificationManager.createNotificationChannel(channel)
-        }
-
-        Toast.makeText(this, "Starting ${files.size} download(s)...", Toast.LENGTH_SHORT).show()
-
-        Thread {
-            var successCount = 0
-            for ((index, file) in files.withIndex()) {
-                val notificationId = 2000 + index // Unique ID per file
-
-                val builder = NotificationCompat.Builder(this, channelId)
-                    .setContentTitle("Downloading ${file.name}")
-                    .setSmallIcon(R.drawable.folder_outlined) // Uses your modern icon
-                    .setOngoing(true)
-                    .setOnlyAlertOnce(true)
-
-                try {
-                    val encodedPath = URLEncoder.encode(file.path, "UTF-8").replace("+", "%20")
-                    val url = URL("http://$ip:34931/api/files/download?path=$encodedPath")
-                    val connection = url.openConnection() as HttpURLConnection
-                    connection.setRequestProperty("Authorization", "Bearer $token")
-                    connection.connect()
-
-                    if (connection.responseCode != 200) throw Exception("Server returned ${connection.responseCode}")
-
-                    val fileLength = connection.contentLengthLong
-
-                    val downloadsDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS)
-                    val lanSyncDir = java.io.File(downloadsDir, "LanSync")
-                    if (!lanSyncDir.exists()) lanSyncDir.mkdirs()
-
-                    val outputFile = java.io.File(lanSyncDir, file.name)
-                    val input = connection.inputStream
-                    val output = java.io.FileOutputStream(outputFile)
-
-                    val data = ByteArray(8192)
-                    var total: Long = 0
-                    var count: Int
-                    var lastUpdateTime = System.currentTimeMillis()
-                    var lastUpdateBytes: Long = 0
-
-                    while (input.read(data).also { count = it } != -1) {
-                        total += count
-                        output.write(data, 0, count)
-
-                        val currentTime = System.currentTimeMillis()
-                        // ── Update Notification every 500ms for smooth UI ──
-                        if (currentTime - lastUpdateTime > 500) {
-                            val timeDiff = (currentTime - lastUpdateTime) / 1000.0
-                            val bytesDiff = total - lastUpdateBytes
-                            val speedBps = bytesDiff / timeDiff
-
-                            val progressPercent = if (fileLength > 0) ((total.toDouble() / fileLength.toDouble()) * 100).toInt() else 0
-
-                            val speedStr = com.xrontrix.lansync.ui.screens.formatSize(speedBps.toLong()) + "/s"
-                            val totalStr = com.xrontrix.lansync.ui.screens.formatSize(total)
-                            val sizeStr = if (fileLength > 0) com.xrontrix.lansync.ui.screens.formatSize(fileLength) else "Unknown"
-
-                            builder.setProgress(100, progressPercent, fileLength <= 0L)
-                            builder.setContentText("$totalStr / $sizeStr • $speedStr")
-                            notificationManager.notify(notificationId, builder.build())
-
-                            lastUpdateTime = currentTime
-                            lastUpdateBytes = total
-                        }
-                    }
-                    output.flush()
-                    output.close()
-                    input.close()
-
-                    // ── Success State ──
-                    builder.setContentTitle("Download Complete")
-                        .setContentText(file.name)
-                        .setProgress(0, 0, false)
-                        .setOngoing(false)
-                    notificationManager.notify(notificationId, builder.build())
-                    successCount++
-
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                    // ── Failure State ──
-                    builder.setContentTitle("Download Failed")
-                        .setContentText("${file.name}: ${e.message}")
-                        .setProgress(0, 0, false)
-                        .setOngoing(false)
-                    notificationManager.notify(notificationId, builder.build())
-                }
-            }
-
-            runOnUiThread {
-                Toast.makeText(this@MainActivity, "Saved $successCount file(s) to Downloads/LanSync", Toast.LENGTH_LONG).show()
-            }
-        }.start()
-    }
-
     private fun checkAndRequestStoragePermissions() {
-        // 1. Request All Files Access (Your existing code)
         if (!android.os.Environment.isExternalStorageManager()) {
             try {
-                val intent = android.content.Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
+                val intent = Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
                 intent.data = Uri.fromParts("package", packageName, null)
                 startActivity(intent)
             } catch (e: Exception) {
-                startActivity(android.content.Intent(android.provider.Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION))
+                startActivity(Intent(android.provider.Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION))
             }
         }
 
-        // 2. Request Notification Permission for Android 13+ (Tiramisu)
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
             if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
                 requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 101)
@@ -754,7 +555,7 @@ class MainActivity : ComponentActivity(), BridgeCallback {
         runOnUiThread {
             if (activeDeviceIP.value == ip) {
                 activeDeviceIP.value = null
-                toggleForegroundService(false) // Stop the Foreground Service!
+                toggleForegroundService(false)
             }
             Toast.makeText(this, "Device disconnected: $ip", Toast.LENGTH_SHORT).show()
         }

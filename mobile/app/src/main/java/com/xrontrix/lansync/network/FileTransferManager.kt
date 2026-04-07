@@ -1,0 +1,227 @@
+package com.xrontrix.lansync.network
+
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.content.Context
+import android.net.Uri
+import android.os.Environment
+import android.os.Handler
+import android.os.Looper
+import android.provider.DocumentsContract
+import android.provider.OpenableColumns
+import android.widget.Toast
+import androidx.core.app.NotificationCompat
+import bridge.Bridge
+import com.xrontrix.lansync.R
+import com.xrontrix.lansync.ui.screens.FileInfo
+import com.xrontrix.lansync.ui.screens.formatSize
+import java.io.DataOutputStream
+import java.io.File
+import java.io.FileOutputStream
+import java.net.HttpURLConnection
+import java.net.URL
+import java.net.URLEncoder
+
+class FileTransferManager(private val context: Context) {
+    private val mainHandler = Handler(Looper.getMainLooper())
+
+    private fun runOnMain(action: () -> Unit) {
+        mainHandler.post(action)
+    }
+
+    private fun uploadSingleFile(ip: String, token: String, remotePath: String, uri: Uri, fileName: String): Boolean {
+        return try {
+            val encodedPath = URLEncoder.encode(remotePath, "UTF-8")
+            val url = URL("http://$ip:34931/api/files/upload?dir=$encodedPath")
+            val connection = url.openConnection() as HttpURLConnection
+            val boundary = "Boundary-${System.currentTimeMillis()}"
+
+            connection.requestMethod = "POST"
+            connection.setRequestProperty("Authorization", "Bearer $token")
+            connection.setRequestProperty("Content-Type", "multipart/form-data; boundary=$boundary")
+            connection.doOutput = true
+            connection.setChunkedStreamingMode(1024 * 1024)
+
+            DataOutputStream(connection.outputStream).use { outputStream ->
+                outputStream.writeBytes("--$boundary\r\n")
+                outputStream.writeBytes("Content-Disposition: form-data; name=\"files\"; filename=\"$fileName\"\r\n")
+                outputStream.writeBytes("Content-Type: application/octet-stream\r\n\r\n")
+                context.contentResolver.openInputStream(uri)?.use { it.copyTo(outputStream) }
+                outputStream.writeBytes("\r\n--$boundary--\r\n")
+                outputStream.flush()
+            }
+            val code = connection.responseCode
+            connection.disconnect()
+            code == 200
+        } catch (e: Exception) { false }
+    }
+
+    fun uploadFiles(ip: String, currentPath: String, uris: List<Uri>, onComplete: () -> Unit) {
+        val token = Bridge.getSessionToken(ip)
+        if (token.isEmpty()) return
+
+        Thread {
+            var successCount = 0
+            for (uri in uris) {
+                var fileName = "upload.file"
+                context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                    val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    if (cursor.moveToFirst() && nameIndex >= 0) fileName = cursor.getString(nameIndex)
+                }
+                if (uploadSingleFile(ip, token, currentPath, uri, fileName)) successCount++
+            }
+            runOnMain {
+                Toast.makeText(context, "Uploaded $successCount of ${uris.size} files", Toast.LENGTH_SHORT).show()
+                onComplete()
+            }
+        }.start()
+    }
+
+    fun uploadFolder(ip: String, currentPath: String, treeUri: Uri, onComplete: () -> Unit, onError: () -> Unit) {
+        val token = Bridge.getSessionToken(ip)
+        if (token.isEmpty()) return
+
+        Thread {
+            try {
+                val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, DocumentsContract.getTreeDocumentId(treeUri))
+                var rootFolderName = "UploadedFolder"
+
+                context.contentResolver.query(DocumentsContract.buildDocumentUriUsingTree(treeUri, DocumentsContract.getTreeDocumentId(treeUri)), null, null, null, null)?.use { cursor ->
+                    if (cursor.moveToFirst()) {
+                        val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                        if (nameIndex >= 0) rootFolderName = cursor.getString(nameIndex)
+                    }
+                }
+
+                Bridge.makeDirectory(ip, "34931", currentPath, rootFolderName)
+                val newRemoteBasePath = if (currentPath == "/") "/$rootFolderName" else "$currentPath/$rootFolderName"
+                var successCount = 0
+
+                fun traverse(uri: Uri, remotePath: String) {
+                    context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                        val idIndex = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
+                        val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                        val mimeIndex = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_MIME_TYPE)
+
+                        while (cursor.moveToNext()) {
+                            val docId = cursor.getString(idIndex)
+                            val name = cursor.getString(nameIndex)
+                            val mime = cursor.getString(mimeIndex)
+
+                            if (mime == DocumentsContract.Document.MIME_TYPE_DIR) {
+                                Bridge.makeDirectory(ip, "34931", remotePath, name)
+                                val childUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, docId)
+                                traverse(childUri, "$remotePath/$name")
+                            } else {
+                                val fileUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, docId)
+                                if (uploadSingleFile(ip, token, remotePath, fileUri, name)) successCount++
+                            }
+                        }
+                    }
+                }
+
+                traverse(childrenUri, newRemoteBasePath)
+
+                runOnMain {
+                    Toast.makeText(context, "Uploaded $successCount files from folder", Toast.LENGTH_SHORT).show()
+                    onComplete()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                runOnMain {
+                    Toast.makeText(context, "Folder upload failed", Toast.LENGTH_SHORT).show()
+                    onError()
+                }
+            }
+        }.start()
+    }
+
+    fun downloadFiles(ip: String, files: List<FileInfo>) {
+        val token = Bridge.getSessionToken(ip)
+        if (token.isEmpty()) return
+
+        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val channelId = "LanSyncDownloads"
+
+        val channel = NotificationChannel(channelId, "Downloads", NotificationManager.IMPORTANCE_LOW)
+        notificationManager.createNotificationChannel(channel)
+
+        Toast.makeText(context, "Starting ${files.size} download(s)...", Toast.LENGTH_SHORT).show()
+
+        Thread {
+            var successCount = 0
+            for ((index, file) in files.withIndex()) {
+                val notificationId = 2000 + index
+
+                val builder = NotificationCompat.Builder(context, channelId)
+                    .setContentTitle("Downloading ${file.name}")
+                    .setSmallIcon(R.drawable.folder_outlined)
+                    .setOngoing(true)
+                    .setOnlyAlertOnce(true)
+
+                try {
+                    val encodedPath = URLEncoder.encode(file.path, "UTF-8").replace("+", "%20")
+                    val url = URL("http://$ip:34931/api/files/download?path=$encodedPath")
+                    val connection = url.openConnection() as HttpURLConnection
+                    connection.setRequestProperty("Authorization", "Bearer $token")
+                    connection.connect()
+
+                    if (connection.responseCode != 200) throw Exception("Server returned ${connection.responseCode}")
+
+                    val fileLength = connection.contentLengthLong
+                    val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                    val lanSyncDir = File(downloadsDir, "LanSync")
+                    if (!lanSyncDir.exists()) lanSyncDir.mkdirs()
+
+                    val outputFile = File(lanSyncDir, file.name)
+                    val input = connection.inputStream
+                    val output = FileOutputStream(outputFile)
+
+                    val data = ByteArray(8192)
+                    var total: Long = 0
+                    var count: Int
+                    var lastUpdateTime = System.currentTimeMillis()
+                    var lastUpdateBytes: Long = 0
+
+                    while (input.read(data).also { count = it } != -1) {
+                        total += count
+                        output.write(data, 0, count)
+
+                        val currentTime = System.currentTimeMillis()
+                        if (currentTime - lastUpdateTime > 500) {
+                            val timeDiff = (currentTime - lastUpdateTime) / 1000.0
+                            val speedBps = (total - lastUpdateBytes) / timeDiff
+                            val progressPercent = if (fileLength > 0) ((total.toDouble() / fileLength.toDouble()) * 100).toInt() else 0
+
+                            val speedStr = formatSize(speedBps.toLong()) + "/s"
+                            val totalStr = formatSize(total)
+                            val sizeStr = if (fileLength > 0) formatSize(fileLength) else "Unknown"
+
+                            builder.setProgress(100, progressPercent, fileLength <= 0L)
+                            builder.setContentText("$totalStr / $sizeStr • $speedStr")
+                            notificationManager.notify(notificationId, builder.build())
+
+                            lastUpdateTime = currentTime
+                            lastUpdateBytes = total
+                        }
+                    }
+                    output.flush()
+                    output.close()
+                    input.close()
+
+                    builder.setContentTitle("Download Complete").setContentText(file.name).setProgress(0, 0, false).setOngoing(false)
+                    notificationManager.notify(notificationId, builder.build())
+                    successCount++
+
+                } catch (e: Exception) {
+                    builder.setContentTitle("Download Failed").setContentText("${file.name}: ${e.message}").setProgress(0, 0, false).setOngoing(false)
+                    notificationManager.notify(notificationId, builder.build())
+                }
+            }
+
+            runOnMain {
+                Toast.makeText(context, "Saved $successCount file(s) to Downloads/LanSync", Toast.LENGTH_LONG).show()
+            }
+        }.start()
+    }
+}
