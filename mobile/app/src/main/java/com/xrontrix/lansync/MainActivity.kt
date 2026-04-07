@@ -422,7 +422,7 @@ class MainActivity : ComponentActivity(), BridgeCallback {
             val clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
             runOnUiThread {
                 clipboardManager.setPrimaryClip(android.content.ClipData.newPlainText("LanSync", text))
-                Toast.makeText(this@MainActivity, "Desktop text copied!", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this@MainActivity, "Device text copied!", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -476,7 +476,7 @@ class MainActivity : ComponentActivity(), BridgeCallback {
         Thread {
             try {
                 Bridge.shareMobileClipboard(targetIP, port, text.toByteArray(Charsets.UTF_8), "text/plain")
-                runOnUiThread { Toast.makeText(this@MainActivity, "Sent to Desktop!", Toast.LENGTH_SHORT).show() }
+                runOnUiThread { Toast.makeText(this@MainActivity, "Sent to Device!", Toast.LENGTH_SHORT).show() }
             } catch (e: Exception) {
                 runOnUiThread { Toast.makeText(this@MainActivity, "Share failed: ${e.message}", Toast.LENGTH_LONG).show() }
             }
