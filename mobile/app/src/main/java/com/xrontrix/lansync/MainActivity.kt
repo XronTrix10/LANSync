@@ -516,6 +516,10 @@ class MainActivity : ComponentActivity(), BridgeCallback {
     }
 
     private fun getRealPathFromURI(uriString: String): String {
+        // ── If the special ROOT keyword is passed, give Go the absolute device path ──
+        if (uriString == "ROOT") {
+            return android.os.Environment.getExternalStorageDirectory().absolutePath
+        }
         val defaultPath = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS).absolutePath + "/LanSync"
         if (uriString.isBlank()) return defaultPath
         return try {
