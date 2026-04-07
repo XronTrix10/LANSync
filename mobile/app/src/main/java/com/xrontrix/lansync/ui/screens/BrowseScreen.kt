@@ -23,13 +23,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.foundation.border
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xrontrix.lansync.ui.theme.*
 import java.util.Locale
 import kotlin.math.log10
 import kotlin.math.pow
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.ui.draw.rotate
 import androidx.activity.compose.BackHandler
 import androidx.compose.material.icons.automirrored.rounded.InsertDriveFile
 import androidx.compose.material.icons.automirrored.rounded.ListAlt
@@ -83,12 +86,15 @@ fun BrowseScreen(
     var searchQuery by remember { mutableStateOf("") }
     var isSearchActive by remember { mutableStateOf(false) }
 
+    // ── HOISTED MENU STATE ──
+    var showAddMenu by remember { mutableStateOf(false) }
+
     BackHandler(enabled = currentPath != "/" && currentPath.isNotEmpty()) {
         onNavigate(parentPath.ifEmpty { "/" })
     }
 
-    LaunchedEffect(currentPath) { 
-        selectedFiles = emptySet() 
+    LaunchedEffect(currentPath) {
+        selectedFiles = emptySet()
         searchQuery = ""
         isSearchActive = false
     }
@@ -159,7 +165,6 @@ fun BrowseScreen(
                             modifier = Modifier.fillMaxWidth()
                         )
 
-                        // ── DYNAMIC ERROR TEXT ──
                         if (folderError.isNotEmpty()) {
                             Text(folderError, color = RedAccent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 8.dp))
                         }
@@ -184,20 +189,17 @@ fun BrowseScreen(
                                     val trimmed = newFolderName.trim()
                                     if (trimmed.isEmpty()) return@Button
 
-                                    // 1. Alphanumeric Check
                                     if (!trimmed.matches(Regex("^[a-zA-Z0-9 ]+$"))) {
                                         folderError = "Provide valid folder name (alphanumeric only)"
                                         return@Button
                                     }
 
-                                    // 2. Duplicate Folder Check
                                     val exists = files.any { it.isDir && it.name.equals(trimmed, ignoreCase = true) }
                                     if (exists) {
                                         folderError = "Folder with this name already exists"
                                         return@Button
                                     }
 
-                                    // 3. Success
                                     onCreateFolder(trimmed)
                                     newFolderName = ""
                                     folderError = ""
@@ -228,7 +230,6 @@ fun BrowseScreen(
         Column(modifier = Modifier.fillMaxSize()) {
 
             Surface(color = BgBase, modifier = Modifier.fillMaxWidth()) {
-                // ── DYNAMIC HEADER: Device Name OR Search Bar ──
                 if (isSearchActive) {
                     OutlinedTextField(
                         value = searchQuery,
@@ -239,7 +240,7 @@ fun BrowseScreen(
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = GreenAccent,
                             unfocusedBorderColor = Surface,
-                            focusedContainerColor = Surface, // Darker inset look
+                            focusedContainerColor = Surface,
                             unfocusedContainerColor = Surface,
                             focusedTextColor = TextPrimary
                         ),
@@ -249,9 +250,9 @@ fun BrowseScreen(
                             IconButton(
                                 onClick = {
                                     if (searchQuery.isNotEmpty()) {
-                                        searchQuery = "" // Clear input
+                                        searchQuery = ""
                                     } else {
-                                        isSearchActive = false // Close search
+                                        isSearchActive = false
                                     }
                                 }
                             ) {
@@ -263,20 +264,19 @@ fun BrowseScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 16.dp), 
+                            .padding(horizontal = 16.dp, vertical = 16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         DeviceIcon(activeDeviceOS, GreenAccent, Modifier.size(20.dp))
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = activeDeviceName, 
-                            color = TextPrimary, 
-                            fontWeight = FontWeight.Black, 
-                            fontSize = 18.sp, 
-                            modifier = Modifier.weight(1f) // Pushes the button to the far right
+                            text = activeDeviceName,
+                            color = TextPrimary,
+                            fontWeight = FontWeight.Black,
+                            fontSize = 18.sp,
+                            modifier = Modifier.weight(1f)
                         )
-                        
-                        // ── Search Trigger Button ──
+
                         Surface(
                             color = GreenAccent.copy(alpha = 0.1f),
                             contentColor = GreenAccent,
@@ -286,9 +286,9 @@ fun BrowseScreen(
                         ) {
                             IconButton(onClick = { isSearchActive = true }) {
                                 Icon(
-                                    imageVector = Icons.Rounded.Search, 
-                                    contentDescription = "Search", 
-                                    tint = GreenAccent, 
+                                    imageVector = Icons.Rounded.Search,
+                                    contentDescription = "Search",
+                                    tint = GreenAccent,
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
@@ -316,21 +316,15 @@ fun BrowseScreen(
                             }
                         }
                         Spacer(modifier = Modifier.width(12.dp))
-                        // ── SMART BREADCRUMB FORMATTER ──
                         val displayPath = remember(currentPath) {
-                            // 1. Squash any double slashes or stray Windows backslashes instantly
                             val cleanPath = currentPath.replace("\\", "/").replace(Regex("/{2,}"), "/")
-
                             if (cleanPath == "/" || cleanPath.isBlank()) {
                                 "/"
                             } else {
-                                // 2. Break it into perfect, empty-free segments
                                 val segments = cleanPath.trim('/').split("/").filter { it.isNotEmpty() }
-                                
                                 if (segments.size > 3) {
                                     ".../" + segments.takeLast(3).joinToString("/")
                                 } else {
-                                    // Rebuild the string cleanly from segments instead of returning raw path ──
                                     "/" + segments.joinToString("/")
                                 }
                             }
@@ -343,7 +337,7 @@ fun BrowseScreen(
                             fontSize = 14.sp,
                             modifier = Modifier.weight(1f),
                             maxLines = 1,
-                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis // Ensures extremely long single folder names gracefully truncate
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                         )
                         Spacer(modifier = Modifier.width(12.dp))
                         Surface(color = Accent.copy(alpha = 0.15f), contentColor = Accent, shape = RoundedCornerShape(10.dp), modifier = Modifier.size(36.dp)) {
@@ -359,7 +353,6 @@ fun BrowseScreen(
                     CircularProgressIndicator(color = Accent)
                 }
             } else if (displayFiles.isEmpty()) {
-                // ── Centered "Modal" Empty State ──
                 Box(
                     modifier = Modifier.fillMaxSize().padding(horizontal = 32.dp),
                     contentAlignment = Alignment.Center
@@ -375,12 +368,10 @@ fun BrowseScreen(
                             modifier = Modifier.padding(32.dp)
                         ) {
                             if (isSearchActive) {
-                                // Empty Search State
                                 Icon(Icons.Rounded.Search, contentDescription = null, modifier = Modifier.size(48.dp), tint = TextMuted.copy(alpha = 0.5f))
                                 Spacer(modifier = Modifier.height(12.dp))
                                 Text("No matching files found", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Medium)
                             } else {
-                                // Empty Folder State
                                 Icon(Icons.Outlined.Folder, contentDescription = null, modifier = Modifier.size(48.dp), tint = Accent.copy(alpha = 0.5f))
                                 Spacer(modifier = Modifier.height(12.dp))
                                 Text("This folder is empty", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
@@ -391,7 +382,6 @@ fun BrowseScreen(
                     }
                 }
             } else {
-                // ── Existing File List ──
                 LazyColumn(contentPadding = PaddingValues(bottom = 80.dp)) {
                     items(displayFiles) { file ->
                         val isSelected = selectedFiles.contains(file)
@@ -407,26 +397,40 @@ fun BrowseScreen(
             }
         }
 
+        // ── SPEED DIAL CLICK CATCHER (Dims background & closes menu) ──
+        androidx.compose.animation.AnimatedVisibility(
+            visible = showAddMenu,
+            enter = androidx.compose.animation.fadeIn(),
+            exit = androidx.compose.animation.fadeOut()
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.4f))
+                    .clickable(
+                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                        indication = null
+                    ) { showAddMenu = false }
+            )
+        }
+
         // ─── FLOATING ACTION BUTTONS ───
         Column(modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp), horizontalAlignment = Alignment.End) {
+
             SmallFloatingActionButton(
                 onClick = onShareClipboardClick,
                 containerColor = Surface,
-                contentColor = Color(0xFFa78bfa), // Keep the purple accent for the icon
+                contentColor = Color(0xFFa78bfa),
                 elevation = FloatingActionButtonDefaults.elevation(
-                    defaultElevation = 6.dp, // Add shadow to lift it off the text
+                    defaultElevation = 6.dp,
                     pressedElevation = 2.dp
                 ),
-                modifier = Modifier
-                    .padding(bottom = 12.dp)
-                    // Add a subtle border to keep the premium aesthetic
-                    .border(1.dp, Color(0xFFa78bfa).copy(alpha = 0.3f), RoundedCornerShape(12.dp)),
+                modifier = Modifier.padding(bottom = 12.dp),
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Icon(Icons.Filled.ContentPasteGo, contentDescription = "Share Clipboard")
             }
 
-            // ── Dynamic FAB Swap Logic ──
             if (selectedFiles.isNotEmpty()) {
                 FloatingActionButton(
                     onClick = {
@@ -444,43 +448,84 @@ fun BrowseScreen(
                     )
                 }
             } else {
-                var showAddMenu by remember { mutableStateOf(false) }
-                Box {
-                    FloatingActionButton(onClick = { showAddMenu = true }, containerColor = Accent, contentColor = BgBase, shape = RoundedCornerShape(16.dp)) {
-                        Icon(Icons.Filled.Add, contentDescription = "Add Actions")
-                    }
+                val rotation by animateFloatAsState(targetValue = if (showAddMenu) 45f else 0f, label = "rotate")
+                val cornerRadius by animateDpAsState(targetValue = if (showAddMenu) 50.dp else 16.dp, label = "shape")
+                val fabColor by animateColorAsState(targetValue = if (showAddMenu) Accent.copy(alpha = 0.6f) else Accent, label = "color")
 
-                    MaterialTheme(shapes = MaterialTheme.shapes.copy(extraSmall = RoundedCornerShape(16.dp))) {
-                        DropdownMenu(expanded = showAddMenu, onDismissRequest = { showAddMenu = false }, modifier = Modifier.background(Panel)) {
-                            DropdownMenuItem(
-                                text = { Text("Upload File", color = TextPrimary) },
-                                onClick = { showAddMenu = false; filePickerLauncher.launch("*/*") },
-                                leadingIcon = { Icon(Icons.Filled.UploadFile, tint = Accent, contentDescription = null) }
-                            )
-                            HorizontalDivider(
-                                modifier = Modifier.padding(vertical = 4.dp),
-                                thickness = DividerDefaults.Thickness,
-                                color = Surface
-                            )
+                // ── SEPARATED FLOATING ITEMS (Speed Dial) ──
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = showAddMenu,
+                    enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.slideInVertically(initialOffsetY = { it / 2 }),
+                    exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.slideOutVertically(targetOffsetY = { it / 2 })
+                ) {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        horizontalAlignment = Alignment.End,
+                        modifier = Modifier.padding(bottom = 16.dp)
+                    ) {
 
-                            DropdownMenuItem(
-                                text = { Text("Upload Folder", color = TextPrimary) },
-                                onClick = { showAddMenu = false; folderPickerLauncher.launch(null) },
-                                leadingIcon = { Icon(Icons.Filled.Folder, tint = Color(0xFFa78bfa), contentDescription = null) }
-                            )
+                        // 1. Upload File Button
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = Panel,
+                            shadowElevation = 6.dp
+                        ) {
+                            Row(
+                                modifier = Modifier.clickable { showAddMenu = false; filePickerLauncher.launch("*/*") }.padding(horizontal = 16.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Upload File", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Icon(Icons.Filled.UploadFile, tint = Accent, contentDescription = null, modifier = Modifier.size(22.dp))
+                            }
+                        }
 
-                            HorizontalDivider(
-                                modifier = Modifier.padding(vertical = 4.dp),
-                                thickness = DividerDefaults.Thickness,
-                                color = Surface
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Create Folder", color = TextPrimary) },
-                                onClick = { showAddMenu = false; showCreateFolderDialog = true },
-                                leadingIcon = { Icon(Icons.Filled.CreateNewFolder, tint = GreenAccent, contentDescription = null) }
-                            )
+                        // 2. Upload Folder Button
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = Panel,
+                            shadowElevation = 6.dp
+                        ) {
+                            Row(
+                                modifier = Modifier.clickable { showAddMenu = false; folderPickerLauncher.launch(null) }.padding(horizontal = 16.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Upload Folder", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Icon(Icons.Filled.Folder, tint = Color(0xFFa78bfa), contentDescription = null, modifier = Modifier.size(22.dp))
+                            }
+                        }
+
+                        // 3. Create Folder Button
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = Panel,
+                            shadowElevation = 6.dp
+                        ) {
+                            Row(
+                                modifier = Modifier.clickable { showAddMenu = false; showCreateFolderDialog = true }.padding(horizontal = 16.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Create Folder", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Icon(Icons.Filled.CreateNewFolder, tint = GreenAccent, contentDescription = null, modifier = Modifier.size(22.dp))
+                            }
                         }
                     }
+                }
+
+                // ── MAIN '+' BUTTON ──
+                FloatingActionButton(
+                    onClick = { showAddMenu = !showAddMenu },
+                    containerColor = fabColor,
+                    contentColor = BgBase,
+                    shape = RoundedCornerShape(cornerRadius)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Add,
+                        contentDescription = "Add Actions",
+                        modifier = Modifier.rotate(rotation)
+                    )
                 }
             }
         }
