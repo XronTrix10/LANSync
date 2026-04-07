@@ -23,6 +23,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.foundation.border
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xrontrix.lansync.ui.theme.*
@@ -143,26 +145,34 @@ fun BrowseScreen(
                         Text("Enter a name for the new folder", color = TextMuted, fontSize = 12.sp)
 
                         Spacer(modifier = Modifier.height(16.dp))
+                        var isFolderFocused by remember { mutableStateOf(false) }
 
                         OutlinedTextField(
                             value = newFolderName,
                             onValueChange = {
                                 newFolderName = it
-                                folderError = "" // Clear error on typing
+                                folderError = ""
                             },
                             placeholder = { Text("Vacation Photos", color = TextMuted.copy(alpha = 0.5f), fontSize = 13.sp) },
                             singleLine = true,
                             textStyle = androidx.compose.ui.text.TextStyle(color = TextPrimary, fontSize = 14.sp),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = GreenAccent,
-                                unfocusedBorderColor = Surface,
+                                focusedBorderColor = Color.Transparent,
+                                unfocusedBorderColor = Color.Transparent,
                                 focusedContainerColor = BgBase,
                                 unfocusedContainerColor = BgBase,
                                 focusedTextColor = TextPrimary,
                                 unfocusedTextColor = TextPrimary
                             ),
                             shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .onFocusChanged { isFolderFocused = it.isFocused }
+                                .border(
+                                    width = 1.dp,
+                                    color = if (isFolderFocused) GoldAccent else Surface,
+                                    shape = RoundedCornerShape(10.dp)
+                                )
                         )
 
                         if (folderError.isNotEmpty()) {
@@ -207,12 +217,12 @@ fun BrowseScreen(
                                 },
                                 enabled = newFolderName.trim().isNotEmpty(),
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = GreenAccent.copy(alpha = 0.1f),
-                                    contentColor = GreenAccent,
-                                    disabledContainerColor = GreenAccent.copy(alpha = 0.05f),
-                                    disabledContentColor = GreenAccent.copy(alpha = 0.4f)
+                                    containerColor = GoldAccent.copy(alpha = 0.1f),
+                                    contentColor = GoldAccent,
+                                    disabledContainerColor = GoldAccent.copy(alpha = 0.05f),
+                                    disabledContentColor = GoldAccent.copy(alpha = 0.4f)
                                 ),
-                                border = BorderStroke(1.dp, if (newFolderName.trim().isNotEmpty()) GreenAccent.copy(alpha = 0.3f) else Color.Transparent),
+                                border = BorderStroke(1.dp, if (newFolderName.trim().isNotEmpty()) GoldAccent.copy(alpha = 0.3f) else Color.Transparent),
                                 shape = RoundedCornerShape(10.dp),
                                 modifier = Modifier.height(36.dp),
                                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp)
@@ -231,6 +241,8 @@ fun BrowseScreen(
 
             Surface(color = BgBase, modifier = Modifier.fillMaxWidth()) {
                 if (isSearchActive) {
+                    var isSearchFocused by remember { mutableStateOf(false) }
+
                     OutlinedTextField(
                         value = searchQuery,
                         onValueChange = { searchQuery = it },
@@ -238,13 +250,21 @@ fun BrowseScreen(
                         singleLine = true,
                         textStyle = androidx.compose.ui.text.TextStyle(color = TextPrimary, fontSize = 14.sp),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = GreenAccent,
-                            unfocusedBorderColor = Surface,
+                            focusedBorderColor = Color.Transparent,
+                            unfocusedBorderColor = Color.Transparent,
                             focusedContainerColor = Surface,
                             unfocusedContainerColor = Surface,
                             focusedTextColor = TextPrimary
                         ),
-                        modifier = Modifier.weight(1f).height(50.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(50.dp)
+                            .onFocusChanged { isSearchFocused = it.isFocused }
+                            .border(
+                                width = 1.dp,
+                                color = if (isSearchFocused) GoldAccent else Surface,
+                                shape = RoundedCornerShape(12.dp)
+                            ),
                         shape = RoundedCornerShape(12.dp),
                         trailingIcon = {
                             IconButton(
@@ -267,7 +287,7 @@ fun BrowseScreen(
                             .padding(horizontal = 16.dp, vertical = 16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        DeviceIcon(activeDeviceOS, GreenAccent, Modifier.size(20.dp))
+                        DeviceIcon(activeDeviceOS, GoldAccent, Modifier.size(20.dp))
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = activeDeviceName,
@@ -278,17 +298,17 @@ fun BrowseScreen(
                         )
 
                         Surface(
-                            color = GreenAccent.copy(alpha = 0.1f),
-                            contentColor = GreenAccent,
+                            color = GoldAccent.copy(alpha = 0.1f),
+                            contentColor = GoldAccent,
                             shape = RoundedCornerShape(10.dp),
-                            border = BorderStroke(1.dp, GreenAccent.copy(alpha = 0.3f)),
+                            border = BorderStroke(1.dp, GoldAccent.copy(alpha = 0.3f)),
                             modifier = Modifier.size(36.dp)
                         ) {
                             IconButton(onClick = { isSearchActive = true }) {
                                 Icon(
                                     imageVector = Icons.Rounded.Search,
                                     contentDescription = "Search",
-                                    tint = GreenAccent,
+                                    tint = GoldAccent,
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
@@ -420,7 +440,7 @@ fun BrowseScreen(
             SmallFloatingActionButton(
                 onClick = onShareClipboardClick,
                 containerColor = Surface,
-                contentColor = Color(0xFFa78bfa),
+                contentColor = Purple,
                 elevation = FloatingActionButtonDefaults.elevation(
                     defaultElevation = 6.dp,
                     pressedElevation = 2.dp
@@ -437,7 +457,7 @@ fun BrowseScreen(
                         onDownloadFiles(selectedFiles.toList())
                         selectedFiles = emptySet()
                     },
-                    containerColor = GreenAccent,
+                    containerColor = GoldAccent,
                     contentColor = BgBase,
                     shape = RoundedCornerShape(16.dp)
                 ) {
@@ -492,7 +512,7 @@ fun BrowseScreen(
                             ) {
                                 Text("Upload Folder", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
                                 Spacer(modifier = Modifier.width(12.dp))
-                                Icon(Icons.Filled.Folder, tint = Color(0xFFa78bfa), contentDescription = null, modifier = Modifier.size(22.dp))
+                                Icon(Icons.Filled.Folder, tint = Purple, contentDescription = null, modifier = Modifier.size(22.dp))
                             }
                         }
 
@@ -508,7 +528,7 @@ fun BrowseScreen(
                             ) {
                                 Text("Create Folder", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
                                 Spacer(modifier = Modifier.width(12.dp))
-                                Icon(Icons.Filled.CreateNewFolder, tint = GreenAccent, contentDescription = null, modifier = Modifier.size(22.dp))
+                                Icon(Icons.Filled.CreateNewFolder, tint = GoldAccent, contentDescription = null, modifier = Modifier.size(22.dp))
                             }
                         }
                     }
@@ -557,15 +577,15 @@ fun DynamicFileIcon(name: String, isDir: Boolean, modifier: Modifier = Modifier)
         else -> Icons.AutoMirrored.Rounded.InsertDriveFile
     }
     val tint = when {
-        isDir -> Color(0xFF3d9eff)
-        imageExts.contains(ext) -> Color(0xFFA78BFA)
+        isDir -> Accent
+        imageExts.contains(ext) -> Purple
         videoExts.contains(ext) -> Color(0xFFF87171)
         audioExts.contains(ext) -> Color(0xFF34D399)
         archiveExts.contains(ext) -> Color(0xFFF0A44A)
         codeExts.contains(ext) -> Color(0xFF00C9A7)
         docExts.contains(ext) -> Color(0xFF93C5FD)
         sheetExts.contains(ext) -> Color(0xFF6EE7B7)
-        else -> Color(0xFF8090A8)
+        else -> TextMuted
     }
     Icon(imageVector = icon, contentDescription = null, tint = tint, modifier = modifier)
 }

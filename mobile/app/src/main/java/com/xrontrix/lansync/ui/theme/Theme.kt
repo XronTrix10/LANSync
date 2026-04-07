@@ -14,7 +14,7 @@ private val LanSyncColorScheme = darkColorScheme(
     surface = Surface,
     surfaceVariant = Panel,
     primary = Accent,
-    secondary = GreenAccent,
+    secondary = GoldAccent, // Updated to Gold
     error = RedAccent,
     onBackground = TextPrimary,
     onSurface = TextPrimary
@@ -28,16 +28,20 @@ fun LansyncTheme(
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            // This makes the Android top status bar and bottom nav bar blend perfectly
+
+            // ── Suppress the API 35 Integer deprecation warnings ──
+            @Suppress("DEPRECATION")
             window.statusBarColor = BgBase.toArgb()
+            @Suppress("DEPRECATION")
             window.navigationBarColor = Surface.toArgb()
+
             WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = false
         }
     }
 
     MaterialTheme(
         colorScheme = LanSyncColorScheme,
-        typography = Typography, // This pulls from your Type.kt file
+        typography = Typography,
         content = content
     )
 }

@@ -65,8 +65,8 @@ fun HomeScreen(
 
         Text(
             text = buildAnnotatedString {
-                withStyle(style = SpanStyle(color = Color(0xFF3d4d63))) { append("Lan") }
-                withStyle(style = SpanStyle(color = GreenAccent)) { append("Sync") }
+                withStyle(style = SpanStyle(color = Color(0xFF5f4538))) { append("Lan") }
+                withStyle(style = SpanStyle(color = GoldAccent)) { append("Sync") }
             },
             fontSize = 28.sp, fontWeight = FontWeight.Black, letterSpacing = 4.sp
         )
@@ -100,8 +100,8 @@ fun HomeScreen(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(contentAlignment = Alignment.Center, modifier = Modifier.size(14.dp)) {
                 if (isNetworkAvailable) {
-                    Box(modifier = Modifier.size(8.dp).scale(pingScale).alpha(pingAlpha).background(GreenAccent, CircleShape))
-                    Box(modifier = Modifier.size(8.dp).background(GreenAccent, CircleShape))
+                    Box(modifier = Modifier.size(8.dp).scale(pingScale).alpha(pingAlpha).background(GoldAccent, CircleShape))
+                    Box(modifier = Modifier.size(8.dp).background(GoldAccent, CircleShape))
                 } else {
                     Box(modifier = Modifier.size(8.dp).background(RedAccent, CircleShape))
                 }

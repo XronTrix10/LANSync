@@ -179,11 +179,11 @@ class MainActivity : ComponentActivity(), BridgeCallback {
                                                 incomingRequest.value = null
                                                 Toast.makeText(this@MainActivity, "Connected to ${req.second}", Toast.LENGTH_SHORT).show()
                                             },
-                                            color = GreenAccent.copy(alpha = 0.1f),
+                                            color = GoldAccent.copy(alpha = 0.1f),
                                             shape = RoundedCornerShape(12.dp),
                                             modifier = Modifier.weight(1f).height(45.dp)
                                         ) {
-                                            Box(contentAlignment = Alignment.Center) { Text("Accept", color = GreenAccent, fontWeight = FontWeight.SemiBold, fontSize = 14.sp) }
+                                            Box(contentAlignment = Alignment.Center) { Text("Accept", color = GoldAccent, fontWeight = FontWeight.SemiBold, fontSize = 14.sp) }
                                         }
                                     }
                                 }

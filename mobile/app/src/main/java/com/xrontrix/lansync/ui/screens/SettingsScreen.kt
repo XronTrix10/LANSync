@@ -3,6 +3,8 @@ package com.xrontrix.lansync.ui.screens
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -13,6 +15,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -76,16 +80,31 @@ fun SettingsScreen(
             Column(modifier = Modifier.padding(20.dp)) {
                 Text("DEVICE NAME", color = TextMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
                 Spacer(modifier = Modifier.height(12.dp))
+                var isDeviceNameFocused by remember { mutableStateOf(false) }
+
                 OutlinedTextField(
                     value = deviceName,
                     onValueChange = { deviceName = it },
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Accent, unfocusedBorderColor = BgBase,
-                        focusedContainerColor = BgBase, unfocusedContainerColor = BgBase,
-                        focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary
+                        focusedBorderColor = Color.Transparent,
+                        unfocusedBorderColor = Color.Transparent,
+                        focusedContainerColor = BgBase,
+                        unfocusedContainerColor = BgBase,
+                        focusedTextColor = TextPrimary,
+                        unfocusedTextColor = TextPrimary
                     ),
-                    singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)
+                    singleLine = true,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .onFocusChanged { isDeviceNameFocused = it.isFocused }
+                        .border(
+                            width = 1.dp,
+                            color = if (isDeviceNameFocused) Accent else Color.Transparent,
+                            shape = RoundedCornerShape(12.dp)
+                        ),
+                    shape = RoundedCornerShape(12.dp)
                 )
+
                 Spacer(modifier = Modifier.height(16.dp))
                 Button(
                     onClick = { onSaveName(deviceName) },
@@ -131,7 +150,7 @@ fun SettingsScreen(
                 modifier = Modifier.weight(1f), onClick = { exposedPicker.launch(null) }
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Icon(Icons.Filled.Folder, contentDescription = null, tint = GreenAccent)
+                    Icon(Icons.Filled.Folder, contentDescription = null, tint = GoldAccent)
                     Spacer(modifier = Modifier.height(12.dp))
                     Text("Exposed Folder", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(2.dp))
