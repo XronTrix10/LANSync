@@ -53,7 +53,7 @@ func (c *AndroidClient) IdentifyDevice(inputIP string) (models.DeviceIdentity, e
 			return result, nil
 		}
 	}
-	return models.DeviceIdentity{}, fmt.Errorf("could not reach device")
+	return models.DeviceIdentity{}, fmt.Errorf("Could not reach device")
 }
 
 func (c *AndroidClient) RequestConnection(targetIP string, targetPort string, myDeviceName string) (string, error) {

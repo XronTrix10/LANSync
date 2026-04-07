@@ -28,17 +28,28 @@ export function BrowserToolbar({
   setIsSearchActive,
 }: Props) {
   // ── Path Calculations ──
-  const normPath = currentPath ? currentPath.replace(/\\/g, "/") : "";
-  const normRoot = deviceRootPath ? deviceRootPath.replace(/\\/g, "/") : "";
+  // 1. Squash backslashes and duplicate forward slashes instantly
+  const cleanPath = (p: string) => (p ? p.replace(/\\/g, "/").replace(/\/+/g, "/") : "");
+
+  let normPath = cleanPath(currentPath);
+  let normRoot = cleanPath(deviceRootPath);
+
+  // Remove trailing slashes for clean prefix matching (unless it's just "/")
+  if (normRoot.length > 1 && normRoot.endsWith("/")) normRoot = normRoot.slice(0, -1);
+  if (normPath.length > 1 && normPath.endsWith("/")) normPath = normPath.slice(0, -1);
 
   let displayPath = normPath;
   if (normRoot && normPath.startsWith(normRoot)) {
     displayPath = normPath.substring(normRoot.length);
   }
   if (!displayPath.startsWith("/")) displayPath = "/" + displayPath;
+  displayPath = cleanPath(displayPath); // Final squash to ensure no double slashes formed
 
-  const pathSegments = displayPath.split("/").filter(Boolean);
-  const isRoot = normPath === normRoot;
+  // 2. Break into segments, strictly stripping out empty strings and stray dots (".")
+  const pathSegments = displayPath.split("/").filter((seg) => seg.trim().length > 0 && seg !== ".");
+
+  // 3. Determine root state based on segments rather than raw strings
+  const isRoot = pathSegments.length === 0;
   const canGoUp = !isRoot && parentPath;
 
   const MAX_SEGMENTS = 5;
@@ -49,8 +60,8 @@ export function BrowserToolbar({
 
   const buildAbsolutePath = (relativePath: string) => {
     if (!normRoot) return relativePath;
-    if (normRoot.endsWith("/")) return normRoot.slice(0, -1) + relativePath;
-    return normRoot + relativePath;
+    // Because we stripped the trailing slash from normRoot above, we can safely append relativePath
+    return normRoot === "/" ? relativePath : normRoot + relativePath;
   };
 
   return (
@@ -88,6 +99,7 @@ export function BrowserToolbar({
         </div>
       ) : (
         <div className="flex-1 flex items-center gap-1 overflow-x-auto hide-scrollbar min-w-0">
+          {/* ── 1. The Root Button ── */}
           <button
             onClick={() => onNavigate("/")}
             className="text-[11px] font-mono text-dull hover:text-accent transition-colors shrink-0 px-1 py-0.5 rounded hover:bg-accent/8"
@@ -95,15 +107,16 @@ export function BrowserToolbar({
             /
           </button>
 
+          {/* ── 2. The Ellipsis (Fixed extra slash here too) ── */}
           {showEllipsis && (
             <span className="flex items-center gap-1 shrink-0">
-              <span className="text-border text-[11px]">/</span>
               <span className="text-[11px] font-mono px-1 py-0.5 text-light select-none">
                 ...
               </span>
             </span>
           )}
 
+          {/* ── 3. The Segments ── */}
           {visibleSegments.map((seg, i) => {
             const originalIndex =
               pathSegments.length - visibleSegments.length + i;
@@ -112,12 +125,18 @@ export function BrowserToolbar({
             const absoluteSegPath = buildAbsolutePath(relativeSegPath);
             const isLast = originalIndex === pathSegments.length - 1;
 
+            // ── Hide the separator if it's the very first item next to the root '/' ──
+            const showSeparator = showEllipsis || i > 0;
+
             return (
               <span
                 key={originalIndex}
                 className="flex items-center gap-1 shrink-0 min-w-0"
               >
-                <span className="text-border text-[11px]">/</span>
+                {showSeparator && (
+                  <span className="text-border text-[11px]">/</span>
+                )}
+
                 <button
                   onClick={() => !isLast && onNavigate(absoluteSegPath)}
                   title={seg}
