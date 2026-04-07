@@ -13,6 +13,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.*
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.*
@@ -77,12 +79,26 @@ fun BrowseScreen(
     var showCreateFolderDialog by remember { mutableStateOf(false) }
     var newFolderName by remember { mutableStateOf("") }
     var folderError by remember { mutableStateOf("") }
+    var searchQuery by remember { mutableStateOf("") }
+    var isSearchActive by remember { mutableStateOf(false) }
 
     BackHandler(enabled = currentPath != "/" && currentPath.isNotEmpty()) {
         onNavigate(parentPath.ifEmpty { "/" })
     }
 
-    LaunchedEffect(currentPath) { selectedFiles = emptySet() }
+    LaunchedEffect(currentPath) { 
+        selectedFiles = emptySet() 
+        searchQuery = ""
+        isSearchActive = false
+    }
+
+    val displayFiles = remember(files, searchQuery) {
+        if (searchQuery.isBlank()) {
+            files
+        } else {
+            files.filter { it.name.contains(searchQuery, ignoreCase = true) }
+        }
+    }
 
     val filePickerLauncher = rememberLauncherForActivityResult(contract = ActivityResultContracts.GetMultipleContents()) { uris: List<Uri> ->
         if (uris.isNotEmpty()) onUploadFiles(uris)
@@ -211,10 +227,48 @@ fun BrowseScreen(
         Column(modifier = Modifier.fillMaxSize()) {
 
             Surface(color = BgBase, modifier = Modifier.fillMaxWidth()) {
-                Row(modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    DeviceIcon(activeDeviceOS, GreenAccent, Modifier.size(20.dp))
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text(activeDeviceName, color = TextPrimary, fontWeight = FontWeight.Black, fontSize = 18.sp, modifier = Modifier.weight(1f))
+                // ── DYNAMIC HEADER: Device Name OR Search Bar ──
+                if (isSearchActive) {
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        placeholder = { Text("Search files...", color = TextMuted) },
+                        singleLine = true,
+                        textStyle = androidx.compose.ui.text.TextStyle(color = TextPrimary, fontSize = 14.sp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = GreenAccent,
+                            unfocusedBorderColor = Surface,
+                            focusedContainerColor = Surface, // Darker inset look
+                            unfocusedContainerColor = Surface,
+                            focusedTextColor = TextPrimary
+                        ),
+                        modifier = Modifier.weight(1f).height(50.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        trailingIcon = {
+                            IconButton(
+                                onClick = {
+                                    if (searchQuery.isNotEmpty()) {
+                                        searchQuery = "" // Clear input
+                                    } else {
+                                        isSearchActive = false // Close search
+                                    }
+                                }
+                            ) {
+                                Icon(Icons.Rounded.Close, contentDescription = "Close", tint = TextMuted)
+                            }
+                        }
+                    )
+                } else {
+                    Row(modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        DeviceIcon(activeDeviceOS, GreenAccent, Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(activeDeviceName, color = TextPrimary, fontWeight = FontWeight.Black, fontSize = 18.sp, modifier = Modifier.weight(1f))
+                    }
+                    
+                    // ── Search Trigger Button ──
+                    IconButton(onClick = { isSearchActive = true }) {
+                        Icon(Icons.Rounded.Search, contentDescription = "Search", tint = TextPrimary)
+                    }
                 }
             }
 
@@ -279,7 +333,7 @@ fun BrowseScreen(
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Accent) }
             } else {
                 LazyColumn(contentPadding = PaddingValues(bottom = 80.dp)) {
-                    items(files) { file ->
+                    items(displayFiles) { file ->
                         val isSelected = selectedFiles.contains(file)
                         FileRowItem(
                             file = file, isSelected = isSelected,
@@ -297,8 +351,15 @@ fun BrowseScreen(
         Column(modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp), horizontalAlignment = Alignment.End) {
             SmallFloatingActionButton(
                 onClick = onShareClipboardClick,
-                containerColor = Color(0xFFa78bfa).copy(alpha = 0.15f), contentColor = Color(0xFFa78bfa),
-                modifier = Modifier.padding(bottom = 12.dp), shape = RoundedCornerShape(12.dp)
+                containerColor = Color(0xFFa78bfa).copy(alpha = 0.15f), // High transparency
+                contentColor = Color(0xFFa78bfa),
+                elevation = FloatingActionButtonDefaults.elevation(0.dp, 0.dp, 0.dp, 0.dp), // Remove shadow for true glass look
+                modifier = Modifier
+                    .padding(bottom = 12.dp)
+                    // Optional: If running strictly on Android 12+, you can add actual blur here
+                    // .graphicsLayer { renderEffect = android.graphics.RenderEffect.createBlurEffect(20f, 20f, android.graphics.Shader.TileMode.CLAMP).asComposeRenderEffect() }
+                ,
+                shape = RoundedCornerShape(12.dp)
             ) {
                 Icon(Icons.Filled.ContentPaste, contentDescription = "Share Clipboard")
             }
