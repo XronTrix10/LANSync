@@ -24,7 +24,7 @@ jobs:
             artifact_name: macos-amd64
             build_flags: ""
           - os: macos-latest
-            platform: darwin/arm64 # Apple Silicon (M1...M5)
+            platform: darwin/arm64 # Apple Silicon
             artifact_name: macos-arm64
             build_flags: ""
           - os: ubuntu-latest
@@ -62,13 +62,21 @@ jobs:
       - name: Package Mac App (Preserve Permissions)
         if: runner.os == 'macOS'
         working-directory: ./desktop/build/bin
-        run: zip -qr LanSync-${{ matrix.artifact_name }}.zip LanSync.app
+        # Changed to lowercase
+        run: zip -qr lansync-${{ matrix.artifact_name }}.zip LanSync.app
+
+      - name: Package Windows Installer
+        if: runner.os == 'Windows'
+        working-directory: ./desktop/build/bin
+        # Deletes the raw executable and renames the actual NSIS installer
+        run: |
+          Remove-Item -Path "LanSync.exe" -ErrorAction SilentlyContinue
+          Rename-Item -Path "*-installer.exe" -NewName "lansync-setup.exe"
 
       - name: Upload Desktop Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
-          # Upload the zip for Mac, and the raw binaries for Windows/Linux
           path: |
             desktop/build/bin/*.exe
             desktop/build/bin/*.zip
@@ -91,15 +99,19 @@ jobs:
         working-directory: ./mobile
         run: chmod +x ./gradlew
 
-      - name: Build Release APK
+      - name: Build Debug APK
         working-directory: ./mobile
-        run: ./gradlew assembleRelease
+        run: ./gradlew assembleDebug
+
+      - name: Rename APK
+        working-directory: ./mobile/app/build/outputs/apk/debug
+        run: mv app-debug.apk lansync_debug.apk
 
       - name: Upload Android Artifact
         uses: actions/upload-artifact@v4
         with:
           name: android-apk
-          path: mobile/app/build/outputs/apk/release/*.apk
+          path: mobile/app/build/outputs/apk/debug/lansync_debug.apk
 
   publish:
     name: Publish Release
@@ -115,8 +127,8 @@ jobs:
 
       - name: Prepare Assets for Release
         run: |
-          # Linux binaries still need to be tarballed to preserve permissions
-          cd artifacts/linux-amd64 && tar -czvf ../../LanSync-Linux-amd64.tar.gz . && cd ../../
+          # Linux binaries still need to be tarballed to preserve permissions. Changed to lowercase.
+          cd artifacts/linux-amd64 && tar -czvf ../../lansync-linux-amd64.tar.gz . && cd ../../
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
@@ -126,8 +138,8 @@ jobs:
           draft: false
           prerelease: false
           files: |
-            artifacts/macos-amd64/*.zip
-            artifacts/macos-arm64/*.zip
-            LanSync-Linux-amd64.tar.gz
-            artifacts/windows-amd64/*.exe
-            artifacts/android-apk/*.apk
+            artifacts/macos-amd64/lansync-macos-amd64.zip
+            artifacts/macos-arm64/lansync-macos-arm64.zip
+            lansync-linux-amd64.tar.gz
+            artifacts/windows-amd64/lansync-setup.exe
+            artifacts/android-apk/lansync_debug.apk
