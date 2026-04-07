@@ -239,14 +239,20 @@ fun BrowseScreen(
                         Spacer(modifier = Modifier.width(12.dp))
                         // ── SMART BREADCRUMB FORMATTER ──
                         val displayPath = remember(currentPath) {
-                            if (currentPath == "/" || currentPath.isBlank()) {
+                            // 1. Squash any double slashes or stray Windows backslashes instantly
+                            val cleanPath = currentPath.replace("\\", "/").replace(Regex("/{2,}"), "/")
+
+                            if (cleanPath == "/" || cleanPath.isBlank()) {
                                 "/"
                             } else {
-                                val segments = currentPath.trim('/').split("/").filter { it.isNotEmpty() }
+                                // 2. Break it into perfect, empty-free segments
+                                val segments = cleanPath.trim('/').split("/").filter { it.isNotEmpty() }
+                                
                                 if (segments.size > 3) {
                                     ".../" + segments.takeLast(3).joinToString("/")
                                 } else {
-                                    currentPath
+                                    // Rebuild the string cleanly from segments instead of returning raw path ──
+                                    "/" + segments.joinToString("/")
                                 }
                             }
                         }
