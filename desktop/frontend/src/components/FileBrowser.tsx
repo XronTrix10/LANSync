@@ -303,13 +303,13 @@ export function FileBrowser({
         onClick={(e) => e.stopPropagation()}
       >
         {showFabMenu && (
-          <div className="rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.5)] py-1.5 px-1.5 w-40 flex flex-col gap-y-2 animate-in slide-in-from-bottom-2 fade-in duration-150">
+          <div className="rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.5)] py-1.5 px-1.5 w-40 flex flex-col items-end gap-y-2 animate-in slide-in-from-bottom-2 fade-in duration-150">
             <button
               onClick={() => {
                 setShowFabMenu(false);
                 onUploadFiles();
               }}
-              className="w-full rounded-xl border border-purple/30 flex items-center gap-2.5 px-3 py-2.5 text-[12px] font-medium bg-purple/10 text-purple transition-colors backdrop-blur-md hover:text-text"
+              className="w-fit rounded-xl border border-purple/30 flex items-center gap-2.5 px-3 py-2.5 text-[12px] font-medium bg-purple/10 text-purple transition-colors backdrop-blur-md hover:text-text hover:bg-purple/80"
             >
               <Upload size={14} /> Upload Files
             </button>
@@ -318,7 +318,7 @@ export function FileBrowser({
                 setShowFabMenu(false);
                 onUploadFolder();
               }}
-              className="w-full rounded-xl border border-gold/30 flex items-center gap-2.5 px-3 py-2.5 text-[12px] font-medium bg-gold/10 text-gold transition-colors backdrop-blur-md hover:text-text"
+              className="w-fit rounded-xl border border-gold/30 flex items-center gap-2.5 px-3 py-2.5 text-[12px] font-medium bg-gold/10 text-gold transition-colors backdrop-blur-md hover:text-text hover:bg-gold/80"
             >
               <FolderUp size={14} /> Upload Folder
             </button>
@@ -327,7 +327,7 @@ export function FileBrowser({
                 setShowFabMenu(false);
                 setShowCreateModal(true);
               }}
-              className="w-full rounded-xl flex items-center border border-accent/30 gap-2.5 px-3 py-2.5 text-[12px] font-medium bg-accent/10 text-accent transition-colors backdrop-blur-md hover:text-text"
+              className="w-fit rounded-xl flex items-center border border-accent/30 gap-2.5 px-3 py-2.5 text-[12px] font-medium bg-accent/10 text-accent transition-colors backdrop-blur-md hover:text-text hover:bg-accent/90"
             >
               <FolderPlus size={14} /> Create Folder
             </button>
