@@ -232,7 +232,7 @@ export function Sidebar({
                 </span>
 
                 <div className="flex-1 min-w-0">
-                  <p className="text-[11px] font-medium text-light truncate mb-0.5 group-hover:text-text">
+                  <p className="text-[11px] font-medium text-light truncate mb-0.5">
                     {device.deviceName}
                   </p>
                   <p className="text-[10px] font-mono text-dull truncate">
