@@ -63,9 +63,9 @@ export function Sidebar({
   );
 
   return (
-    <aside className="w-64 shrink-0 flex flex-col bg-surface border-r border-border">
+    <aside className="w-64 shrink-0 flex flex-col gap-y-2 ml-2 mb-2 rounded-xl">
       {/* ── Logo & IPs ── */}
-      <div className="px-5 pt-5 pb-4 border-b border-border">
+      <div className="px-5 pt-5 pb-4 rounded-xl bg-surface">
         <div
           className="text-[14px] font-black tracking-widest mb-3 select-none truncate text-text"
           title={localDeviceName || "My Device"}
@@ -92,14 +92,18 @@ export function Sidebar({
               </div>
             ))}
           </div>
-          <button onClick={() => setShowSettings(true)} title="Settings" className="text-light hover:text-text transition-colors duration-200">
+          <button
+            onClick={() => setShowSettings(true)}
+            title="Settings"
+            className="text-light hover:text-text transition-colors duration-200"
+          >
             <Settings size={15} />
           </button>
         </div>
       </div>
 
       {/* ── Connected Devices ── */}
-      <div className="flex-1 overflow-y-auto px-3 py-3 scrollbar-thin">
+      <div className="flex-1 overflow-y-auto px-3 py-3 scrollbar-thin rounded-xl bg-surface">
         <p className="text-[9px] font-bold tracking-[0.15em] uppercase text-dull px-2 mb-2">
           Connected
         </p>
@@ -120,9 +124,10 @@ export function Sidebar({
                   className={`
                     group w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-lg
                     border transition-all duration-150 relative overflow-hidden
-                    ${isActive
-                      ? "bg-accent/8 border-accent/30"
-                      : "bg-transparent border-transparent hover:bg-panel hover:border-border"
+                    ${
+                      isActive
+                        ? "bg-accent/8 border-accent/30"
+                        : "bg-transparent border-transparent hover:bg-panel hover:border-border"
                     }
                   `}
                 >
@@ -135,7 +140,7 @@ export function Sidebar({
                   <span
                     className={`shrink-0 ${isActive ? "text-accent" : "text-dull group-hover:text-light"}`}
                   >
-                    <DeviceIcon os={device.os} size={15} />
+                    <DeviceIcon os={device.os} size={16} />
                   </span>
 
                   {/* Info */}
@@ -169,7 +174,7 @@ export function Sidebar({
       </div>
 
       {/* ── Add Device ── */}
-      <div className="px-3 pb-3 border-t border-border pt-3 flex flex-col gap-3">
+      <div className="px-3 pb-3 rounded-xl bg-surface pt-3 flex flex-col gap-3">
         <p className="text-[9px] font-bold tracking-[0.15em] uppercase text-dull px-2">
           Add Device
         </p>
@@ -222,8 +227,8 @@ export function Sidebar({
                   bg-transparent hover:bg-panel border-transparent hover:border-border
                 "
               >
-                <span className="text-dull group-hover:text-light">
-                  <DeviceIcon os={device.os} size={12} />
+                <span className="text-dull group-hover:text-light transition-colors duration-200">
+                  <DeviceIcon os={device.os} size={16} />
                 </span>
 
                 <div className="flex-1 min-w-0">

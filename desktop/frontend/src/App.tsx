@@ -517,7 +517,7 @@ export default function App() {
           setShowSettings={setShowSettings}
         />
 
-        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden m-2 mt-0 rounded-xl">
           <FileBrowser
             activeDeviceIP={activeDeviceIP}
             files={files}

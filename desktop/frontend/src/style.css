@@ -2,15 +2,15 @@
 
 @theme {
   /* Core palette — warm-shifted darks to complement orange */
-  --color-bg-base:  #090810;
-  --color-surface:  #100f17;
-  --color-panel:    #15131e;
+  --color-bg-base:  #070707;
+  --color-surface:  #131313;
+  --color-panel:    #1D1D1D;
   --color-card:     #1b1826;
-  --color-border:   #221f2e;
+  --color-border:   #2c2e41;
   --color-border2:  #2e2a3f;
  
   /* Accent — orange family */
-  --color-accent:       #d76a04;   /* primary orange */
+  --color-accent:       #f58e2f;   /* primary orange */
   --color-accent-warm:  #e8832a;   /* hover / lighter orange */
   --color-amber:        #f0a44a;   /* secondary warm, folder upload, code */
  
@@ -20,16 +20,11 @@
   --color-purple:   #a78bfa;   /* image files */
  
   /* Text hierarchy */
-  --color-text:     #ffe5da;   /* slightly warmer white */
+  --color-text:     #FCF6F3;   /* slightly warmer white */
   --color-muted:    #8a8099;
   --color-dim:      #42395a;
-  --color-dull:     #5f4538;
-  --color-light:    #e3a285;
-}
-
-.test {
-  color: #ffe5da;
-  background-color: #00bb2c;
+  --color-dull:     #6e6e6e;
+  --color-light:    #ffd2bf;
 }
 
 html {

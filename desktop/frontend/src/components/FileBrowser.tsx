@@ -157,7 +157,7 @@ export function FileBrowser({
   // ── Empty / no-device state ────────────────────────────────────────────────
   if (!activeDeviceIP) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center gap-4 bg-bg-base text-dull">
+      <div className="flex-1 flex flex-col items-center justify-center gap-4 bg-surface text-dull">
         <div className="relative">
           <div className="w-20 h-20 rounded-2xl border-2 border-dashed border-border flex items-center justify-center">
             <Layers size={32} strokeWidth={1} />

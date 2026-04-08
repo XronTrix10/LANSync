@@ -65,8 +65,8 @@ fun HomeScreen(
 
         Text(
             text = buildAnnotatedString {
-                withStyle(style = SpanStyle(color = Color(0xFF5f4538))) { append("Lan") }
-                withStyle(style = SpanStyle(color = GoldAccent)) { append("Sync") }
+                withStyle(style = SpanStyle(color = Color(0xFF6E6E6E))) { append("LAN") }
+                withStyle(style = SpanStyle(color = Color(0xFFFFD2BF))) { append("Sync") }
             },
             fontSize = 28.sp, fontWeight = FontWeight.Black, letterSpacing = 4.sp
         )

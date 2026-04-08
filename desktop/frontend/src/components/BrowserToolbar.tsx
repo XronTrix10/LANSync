@@ -65,7 +65,7 @@ export function BrowserToolbar({
   };
 
   return (
-    <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border bg-surface/60 shrink-0 h-12">
+    <div className="flex items-center gap-2 px-2 py-2.5 border-b border-border bg-surface/60 shrink-0 h-12">
       <button
         onClick={() => onNavigate(parentPath || "/")}
         disabled={!canGoUp || disabled}

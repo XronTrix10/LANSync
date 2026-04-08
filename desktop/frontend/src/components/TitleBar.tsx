@@ -33,8 +33,8 @@ export function TitleBar() {
   return (
     <div
       // ── Added pl-[80px] for Mac to avoid the native traffic lights! ──
-      className={`h-8 w-full bg-bg-base flex items-center shrink-0 select-none border-b border-border relative ${
-        isMac ? "pl-20 justify-start" : "pl-4 justify-between"
+      className={`h-8 w-full bg-bg-base flex items-center shrink-0 select-none border-border relative ${
+        isMac ? "pl-20 justify-start" : "pl-6 justify-between"
       }`}
       data-wails-drag
       style={{ "--wails-draggable": "drag" } as any}
@@ -48,9 +48,9 @@ export function TitleBar() {
           className="w-5 h-5 object-contain pointer-events-none"
           draggable="false"
         />
-        <div className="text-md font-black tracking-[0.2em]">
-          <span className="text-dull">Lan</span>
-          <span className="text-gold">Sync</span>
+        <div className="text-md font-black tracking-widest">
+          <span className="text-dull">LAN</span>
+          <span className="text-light">Sync</span>
         </div>
       </div>
 
