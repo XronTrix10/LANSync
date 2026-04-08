@@ -65,12 +65,12 @@ fun BrowseScreen(
     if (activeDeviceIP == null) {
         Box(modifier = Modifier.fillMaxSize().padding(20.dp), contentAlignment = Alignment.Center) {
             Card(
-                colors = CardDefaults.cardColors(containerColor = RedAccent.copy(alpha = 0.1f)),
-                border = BorderStroke(1.dp, RedAccent.copy(alpha = 0.3f)),
+                colors = CardDefaults.cardColors(containerColor = Accent.copy(alpha = 0.1f)),
+                border = BorderStroke(1.dp, Accent.copy(alpha = 0.3f)),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Filled.Computer, contentDescription = "No Device", tint = RedAccent, modifier = Modifier.size(48.dp))
+                    Icon(Icons.Filled.Computer, contentDescription = "No Device", tint = Accent, modifier = Modifier.size(48.dp))
                     Spacer(modifier = Modifier.height(16.dp))
                     Text("No Device Connected", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                     Spacer(modifier = Modifier.height(8.dp))
@@ -170,7 +170,7 @@ fun BrowseScreen(
                                 .onFocusChanged { isFolderFocused = it.isFocused }
                                 .border(
                                     width = 1.dp,
-                                    color = if (isFolderFocused) GoldAccent else Surface,
+                                    color = if (isFolderFocused) LightAccent else Surface,
                                     shape = RoundedCornerShape(10.dp)
                                 )
                         )
@@ -217,12 +217,12 @@ fun BrowseScreen(
                                 },
                                 enabled = newFolderName.trim().isNotEmpty(),
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = GoldAccent.copy(alpha = 0.1f),
-                                    contentColor = GoldAccent,
-                                    disabledContainerColor = GoldAccent.copy(alpha = 0.05f),
-                                    disabledContentColor = GoldAccent.copy(alpha = 0.4f)
+                                    containerColor = LightAccent.copy(alpha = 0.1f),
+                                    contentColor = LightAccent,
+                                    disabledContainerColor = LightAccent.copy(alpha = 0.05f),
+                                    disabledContentColor = LightAccent.copy(alpha = 0.4f)
                                 ),
-                                border = BorderStroke(1.dp, if (newFolderName.trim().isNotEmpty()) GoldAccent.copy(alpha = 0.3f) else Color.Transparent),
+                                border = BorderStroke(1.dp, if (newFolderName.trim().isNotEmpty()) LightAccent.copy(alpha = 0.3f) else Color.Transparent),
                                 shape = RoundedCornerShape(10.dp),
                                 modifier = Modifier.height(36.dp),
                                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp)
@@ -262,10 +262,10 @@ fun BrowseScreen(
                             .onFocusChanged { isSearchFocused = it.isFocused }
                             .border(
                                 width = 1.dp,
-                                color = if (isSearchFocused) GoldAccent else Surface,
-                                shape = RoundedCornerShape(12.dp)
+                                color = if (isSearchFocused) LightAccent else Surface,
+                                shape = RoundedCornerShape(10.dp)
                             ),
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(10.dp),
                         trailingIcon = {
                             IconButton(
                                 onClick = {
@@ -287,7 +287,7 @@ fun BrowseScreen(
                             .padding(horizontal = 16.dp, vertical = 16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        DeviceIcon(activeDeviceOS, GoldAccent, Modifier.size(20.dp))
+                        DeviceIcon(activeDeviceOS, LightAccent, Modifier.size(20.dp))
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = activeDeviceName,
@@ -298,17 +298,17 @@ fun BrowseScreen(
                         )
 
                         Surface(
-                            color = GoldAccent.copy(alpha = 0.1f),
-                            contentColor = GoldAccent,
+                            color = LightAccent.copy(alpha = 0.1f),
+                            contentColor = LightAccent,
                             shape = RoundedCornerShape(10.dp),
-                            border = BorderStroke(1.dp, GoldAccent.copy(alpha = 0.3f)),
+                            border = BorderStroke(1.dp, LightAccent.copy(alpha = 0.3f)),
                             modifier = Modifier.size(36.dp)
                         ) {
                             IconButton(onClick = { isSearchActive = true }) {
                                 Icon(
                                     imageVector = Icons.Rounded.Search,
                                     contentDescription = "Search",
-                                    tint = GoldAccent,
+                                    tint = LightAccent,
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
@@ -457,7 +457,7 @@ fun BrowseScreen(
                         onDownloadFiles(selectedFiles.toList())
                         selectedFiles = emptySet()
                     },
-                    containerColor = GoldAccent,
+                    containerColor = LightAccent,
                     contentColor = BgBase,
                     shape = RoundedCornerShape(16.dp)
                 ) {
@@ -486,7 +486,7 @@ fun BrowseScreen(
 
                         // 1. Upload File Button
                         Surface(
-                            shape = RoundedCornerShape(16.dp),
+                            shape = RoundedCornerShape(12.dp),
                             color = Panel,
                             shadowElevation = 6.dp
                         ) {
@@ -502,7 +502,7 @@ fun BrowseScreen(
 
                         // 2. Upload Folder Button
                         Surface(
-                            shape = RoundedCornerShape(16.dp),
+                            shape = RoundedCornerShape(12.dp),
                             color = Panel,
                             shadowElevation = 6.dp
                         ) {
@@ -518,7 +518,7 @@ fun BrowseScreen(
 
                         // 3. Create Folder Button
                         Surface(
-                            shape = RoundedCornerShape(16.dp),
+                            shape = RoundedCornerShape(12.dp),
                             color = Panel,
                             shadowElevation = 6.dp
                         ) {
@@ -528,7 +528,7 @@ fun BrowseScreen(
                             ) {
                                 Text("Create Folder", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
                                 Spacer(modifier = Modifier.width(12.dp))
-                                Icon(Icons.Filled.CreateNewFolder, tint = GoldAccent, contentDescription = null, modifier = Modifier.size(22.dp))
+                                Icon(Icons.Filled.CreateNewFolder, tint = LightAccent, contentDescription = null, modifier = Modifier.size(22.dp))
                             }
                         }
                     }

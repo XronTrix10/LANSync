@@ -6,6 +6,9 @@ import {
   WindowIsMaximised,
   WindowMinimise,
   WindowToggleMaximise,
+  WindowIsFullscreen,
+  EventsOn,
+  EventsOff,
 } from "../../wailsjs/runtime/runtime";
 
 import logoImage from "../assets/images/lanSync.png";
@@ -13,17 +16,29 @@ import logoImage from "../assets/images/lanSync.png";
 export function TitleBar() {
   const [os, setOs] = useState<string>("");
   const [isMaximised, setIsMaximised] = useState<boolean>(false);
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
 
   useEffect(() => {
     Environment().then((env) => setOs(env.platform));
 
-    const checkMaximized = () => {
+    const checkWindowState = () => {
       WindowIsMaximised().then(setIsMaximised);
+      WindowIsFullscreen().then(setIsFullscreen);
     };
 
-    checkMaximized();
-    window.addEventListener("resize", checkMaximized);
-    return () => window.removeEventListener("resize", checkMaximized);
+    // Initial check and resize listener
+    checkWindowState();
+    window.addEventListener("resize", checkWindowState);
+
+    // ── Listen to native OS Fullscreen events (Crucial for macOS) ──
+    EventsOn("wails:WindowFullscreen", () => setIsFullscreen(true));
+    EventsOn("wails:WindowUnFullscreen", () => setIsFullscreen(false));
+
+    return () => {
+      window.removeEventListener("resize", checkWindowState);
+      EventsOff("wails:WindowFullscreen");
+      EventsOff("wails:WindowUnFullscreen");
+    };
   }, []);
 
   const isMac = os === "darwin";
@@ -32,16 +47,15 @@ export function TitleBar() {
 
   return (
     <div
-      // ── Added pl-[80px] for Mac to avoid the native traffic lights! ──
-      className={`h-8 w-full bg-bg-base flex items-center shrink-0 select-none border-border relative ${
-        isMac ? "pl-20 justify-start" : "pl-6 justify-between"
+      className={`h-8 w-full bg-bg-base flex items-center shrink-0 select-none border-border relative transition-all ${
+        isMac && !isFullscreen ? "pl-20 justify-start" : "pl-6 justify-between"
       }`}
       data-wails-drag
       style={{ "--wails-draggable": "drag" } as any}
       onDoubleClick={WindowToggleMaximise}
     >
       {/* ── TITLE / LOGO AREA ── */}
-      <div className={`flex items-center gap-2.5`}>
+      <div className={`flex items-center gap-2`}>
         <img
           src={logoImage}
           alt="LanSync Logo"

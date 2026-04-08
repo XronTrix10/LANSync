@@ -66,7 +66,7 @@ fun HomeScreen(
         Text(
             text = buildAnnotatedString {
                 withStyle(style = SpanStyle(color = Color(0xFF6E6E6E))) { append("LAN") }
-                withStyle(style = SpanStyle(color = Color(0xFFFFD2BF))) { append("Sync") }
+                withStyle(style = SpanStyle(color = LightAccent)) { append("Sync") }
             },
             fontSize = 28.sp, fontWeight = FontWeight.Black, letterSpacing = 4.sp
         )
@@ -100,8 +100,8 @@ fun HomeScreen(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(contentAlignment = Alignment.Center, modifier = Modifier.size(14.dp)) {
                 if (isNetworkAvailable) {
-                    Box(modifier = Modifier.size(8.dp).scale(pingScale).alpha(pingAlpha).background(GoldAccent, CircleShape))
-                    Box(modifier = Modifier.size(8.dp).background(GoldAccent, CircleShape))
+                    Box(modifier = Modifier.size(8.dp).scale(pingScale).alpha(pingAlpha).background(LightAccent, CircleShape))
+                    Box(modifier = Modifier.size(8.dp).background(LightAccent, CircleShape))
                 } else {
                     Box(modifier = Modifier.size(8.dp).background(RedAccent, CircleShape))
                 }
@@ -118,13 +118,13 @@ fun HomeScreen(
 
         if (!isNetworkAvailable) {
             Card(
-                colors = CardDefaults.cardColors(containerColor = RedAccent.copy(alpha = 0.1f)),
-                border = BorderStroke(1.dp, RedAccent.copy(alpha = 0.3f)),
+                colors = CardDefaults.cardColors(containerColor = Accent.copy(alpha = 0.1f)),
+                border = BorderStroke(1.dp, Accent.copy(alpha = 0.3f)),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 // Properly centered content inside the card
                 Column(modifier = Modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Filled.WifiOff, contentDescription = "No Wifi", tint = RedAccent, modifier = Modifier.size(40.dp))
+                    Icon(Icons.Filled.WifiOff, contentDescription = "No Wifi", tint = Accent, modifier = Modifier.size(40.dp))
                     Spacer(modifier = Modifier.height(12.dp))
                     Text("Network Disconnected", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                     Spacer(modifier = Modifier.height(4.dp))
@@ -148,7 +148,7 @@ fun HomeScreen(
                     // ─── BEAUTIFUL SINGLE-BOX 4-PART IP INPUT ───
                     Surface(
                         color = BgBase,
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(10.dp),
                         // ── Show border if ANY field is focused OR if the IP is complete ──
                         border = BorderStroke(1.dp, if (isAnyFocused || isIpComplete) Accent else Surface),
                         modifier = Modifier.fillMaxWidth().height(55.dp)
@@ -212,7 +212,7 @@ fun HomeScreen(
                         },
                         enabled = isIpComplete && !isConnecting,
                         colors = ButtonDefaults.buttonColors(containerColor = Accent.copy(alpha = 0.15f), contentColor = Accent),
-                        modifier = Modifier.fillMaxWidth().height(50.dp), shape = RoundedCornerShape(12.dp)
+                        modifier = Modifier.fillMaxWidth().height(50.dp), shape = RoundedCornerShape(10.dp)
                     ) {
                         if (isConnecting) {
                             CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Accent, strokeWidth = 2.dp)

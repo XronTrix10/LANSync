@@ -3,7 +3,6 @@ package com.xrontrix.lansync.ui.screens
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -100,16 +99,16 @@ fun SettingsScreen(
                         .border(
                             width = 1.dp,
                             color = if (isDeviceNameFocused) Accent else Color.Transparent,
-                            shape = RoundedCornerShape(12.dp)
+                            shape = RoundedCornerShape(10.dp)
                         ),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(10.dp)
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
                 Button(
                     onClick = { onSaveName(deviceName) },
                     colors = ButtonDefaults.buttonColors(containerColor = Accent.copy(alpha = 0.15f), contentColor = Accent),
-                    modifier = Modifier.fillMaxWidth().height(45.dp), shape = RoundedCornerShape(12.dp)
+                    modifier = Modifier.fillMaxWidth().height(45.dp), shape = RoundedCornerShape(10.dp)
                 ) {
                     Icon(Icons.Filled.Save, contentDescription = "Save", modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
@@ -150,7 +149,7 @@ fun SettingsScreen(
                 modifier = Modifier.weight(1f), onClick = { exposedPicker.launch(null) }
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Icon(Icons.Filled.Folder, contentDescription = null, tint = GoldAccent)
+                    Icon(Icons.Filled.Folder, contentDescription = null, tint = LightAccent)
                     Spacer(modifier = Modifier.height(12.dp))
                     Text("Exposed Folder", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(2.dp))
