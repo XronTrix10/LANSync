@@ -11,7 +11,7 @@ export function TransferDrawer({ transfers }: Props) {
   if (items.length === 0) return null;
 
   return (
-    <div className="shrink-0 border-t border-border bg-surface/95 backdrop-blur-sm">
+    <div className="shrink-0 bg-surface/95 rounded-t-xl backdrop-blur-sm">
       {/* Header */}
       <div className="flex items-center gap-2.5 px-5 py-2.5 border-b border-border">
         <ArrowDownToLine size={13} className="text-accent" />
@@ -44,7 +44,7 @@ export function TransferDrawer({ transfers }: Props) {
                 style={{
                   width: `${t.percent}%`,
                   background:
-                    "linear-gradient(90deg, #3d9eff 0%, #00c9a7 100%)",
+                    "linear-gradient(90deg, #f58e2f 0%, #ffd2bf 100%)",
                   boxShadow: `0 0 8px rgba(61,158,255,0.4)`,
                 }}
               />
