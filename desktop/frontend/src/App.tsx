@@ -22,7 +22,7 @@ import {
   SelectFiles,
   ShareClipboardText,
 } from "../wailsjs/go/main/App";
-import { EventsOff, EventsOn } from "../wailsjs/runtime/runtime";
+import { EventsOff, EventsOn, Environment } from "../wailsjs/runtime/runtime";
 
 import { ConnectionRequestModal } from "./components/ConnectionRequestModal";
 import { FileBrowser } from "./components/FileBrowser";
@@ -40,6 +40,7 @@ import type {
 } from "./types";
 
 export default function App() {
+  const [os, setOs] = useState("");
   const [localIPs, setLocalIPs] = useState<string[]>(["Loading..."]);
   const [loading, setLoading] = useState<boolean>(false);
   const [uploading, setUploading] = useState<boolean>(false);
@@ -78,14 +79,13 @@ export default function App() {
   };
 
   // ── HYBRID DROP STATE (Cross-Platform Savior) ──
-  const lastDropTime = useRef<number>(0);
-  const dropStateRef = useRef({ activeDeviceIP, currentPath, devices });
+  // Track state so the global wails listener always knows what folder we are in.
+  const dropStateRef = useRef({ activeDeviceIP, currentPath, devices, os });
 
   useEffect(() => {
-    dropStateRef.current = { activeDeviceIP, currentPath, devices };
-  }, [activeDeviceIP, currentPath, devices]);
+    dropStateRef.current = { activeDeviceIP, currentPath, devices, os };
+  }, [activeDeviceIP, currentPath, devices, os]);
 
-  // upgraded the regex to aggressively squash ALL backslashes.
   const getBaseDirName = (path: string) => {
     if (!path) return "/";
     const normPath = path.replace(/[\\/]+/g, "/");
@@ -103,6 +103,7 @@ export default function App() {
       } catch (e) {}
     }
 
+    Environment().then((env) => setOs(env.platform));
     GetLocalIPs().then(setLocalIPs);
     GetDeviceName().then((name) => setDeviceName(name));
     GetHomeDir().then(setHomeDir);
@@ -137,26 +138,29 @@ export default function App() {
       showToast(`Connection lost or closed`, "error");
     });
 
-    // ── WAILS NATIVE OS DROP (Linux Fallback) ──
+    // ── WAILS NATIVE OS DROP (Mac / Linux Savior) ──
     EventsOn(
       "wails:file-drop",
       async (_x: number, _y: number, paths: string[]) => {
-        const { activeDeviceIP, currentPath, devices } = dropStateRef.current;
-        if (!activeDeviceIP || !paths || paths.length === 0) return;
+        const {
+          activeDeviceIP,
+          currentPath,
+          devices,
+          os: currentOs,
+        } = dropStateRef.current;
 
-        // Debounce: If HTML5 handled this < 1 second ago (Windows), ignore this native OS event!
-        if (Date.now() - lastDropTime.current < 1000) return;
-        lastDropTime.current = Date.now();
+        // Windows is horribly broken with wails:file-drop. We let the HTML5 fallback handle Windows entirely.
+        if (currentOs === "windows") return;
+        if (!activeDeviceIP || !paths || paths.length === 0) return;
 
         setUploading(true);
         try {
           const port =
             devices.find((d) => d.ip === activeDeviceIP)?.port || "34931";
 
-          // Use backend binding to push absolute paths natively
+          // Bypass web sandbox: Send pure path strings straight to Go.
           await PushToAndroid(activeDeviceIP, port, currentPath, paths);
 
-          // Fetch new files to update UI
           const result: any = await GetRemoteFiles(
             activeDeviceIP,
             port,
@@ -166,7 +170,6 @@ export default function App() {
           setCurrentPath(result.path);
           setParentPath(result.parent);
 
-          // FIX: Uses the bulletproof getBaseDirName logic
           showToast(
             `Successfully uploaded ${paths.length} file(s)`,
             "success",
@@ -174,7 +177,7 @@ export default function App() {
           );
         } catch (err: any) {
           showToast(
-            `Drop upload failed: ${err.message || String(err)}`,
+            `Native drop failed: ${err.message || String(err)}`,
             "error",
           );
         } finally {
@@ -265,7 +268,6 @@ export default function App() {
       );
 
       if (connectedDeviceName) {
-        // Overwrite the generic discovery name with the real, custom name from the handshake!
         device.deviceName = connectedDeviceName;
 
         setDevices((prev) => {
@@ -351,6 +353,7 @@ export default function App() {
     }
   };
 
+  // ── NATIVE UPLOADS (Always works flawlessly across all OS) ──
   const handleUploadFiles = async () => {
     if (!activeDeviceIP) return;
     try {
@@ -421,12 +424,10 @@ export default function App() {
     }
   };
 
-  // ── HTML5 DROP (Windows / Mac) ──
-  const handleDropUpload = async (droppedFiles: File[]) => {
+  // ── WINDOWS FALLBACK (HTML5 Fetch Upload) ──
+  const handleHtmlDropUpload = async (droppedFiles: File[]) => {
     if (!activeDeviceIP) return;
-
-    // Stamp the drop to prevent wails:file-drop from duplicate firing
-    lastDropTime.current = Date.now();
+    if (os !== "windows") return;
 
     setUploading(true);
     let successCount = 0;
@@ -519,6 +520,7 @@ export default function App() {
 
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden m-2 mt-0 rounded-xl">
           <FileBrowser
+            os={os}
             activeDeviceIP={activeDeviceIP}
             files={files}
             currentPath={currentPath}
@@ -530,7 +532,7 @@ export default function App() {
             onDownload={downloadItem}
             onUploadFiles={handleUploadFiles}
             onUploadFolder={handleUploadFolder}
-            onDropUpload={handleDropUpload}
+            onHtmlDropUpload={handleHtmlDropUpload}
             onCreateFolder={handleCreateFolder}
             onShareClipboard={handleShareClipboard}
             onError={(msg) => showToast(msg, "error")}

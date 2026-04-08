@@ -15,6 +15,7 @@ import { CreateFolderModal } from "./CreateFolderModal";
 import { FileRow } from "./FileRow";
 
 interface Props {
+  os: string;
   activeDeviceIP: string | null;
   files: FileInfo[];
   currentPath: string;
@@ -26,13 +27,14 @@ interface Props {
   onDownload: (file: FileInfo) => void;
   onUploadFiles: () => void;
   onUploadFolder: () => void;
-  onDropUpload: (files: File[]) => void;
+  onHtmlDropUpload: (files: File[]) => void;
   onCreateFolder: (folderName: string) => void;
   onShareClipboard: () => void;
   onError: (msg: string) => void;
 }
 
 export function FileBrowser({
+  os,
   activeDeviceIP,
   files,
   currentPath,
@@ -44,7 +46,7 @@ export function FileBrowser({
   onDownload,
   onUploadFiles,
   onUploadFolder,
-  onDropUpload,
+  onHtmlDropUpload,
   onCreateFolder,
   onShareClipboard,
   onError,
@@ -53,20 +55,17 @@ export function FileBrowser({
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showFabMenu, setShowFabMenu] = useState(false);
 
-  // ── NEW: Search States ──
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearchActive, setIsSearchActive] = useState(false);
 
   const dragCounter = useRef(0);
   const disabled = loading || uploading;
 
-  // 1. Reset search ONLY when the directory changes
   useEffect(() => {
     setSearchQuery("");
     setIsSearchActive(false);
   }, [currentPath]);
 
-  // 2. Local Filter Engine (Instantly recalculates on type or refresh)
   const displayFiles = useMemo(() => {
     if (!searchQuery.trim()) return files;
     return files.filter((f) =>
@@ -74,14 +73,13 @@ export function FileBrowser({
     );
   }, [files, searchQuery]);
 
-  // Close FAB menu on outside click
   useEffect(() => {
     const handleClickOutside = () => setShowFabMenu(false);
     if (showFabMenu) document.addEventListener("click", handleClickOutside);
     return () => document.removeEventListener("click", handleClickOutside);
   }, [showFabMenu]);
 
-  // ── Drag and drop handlers ──────────────────────────────────────────────────
+  // ── Drag and drop visual handlers ──────────────────────────────────────────
   const handleDragEnter = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
@@ -101,6 +99,7 @@ export function FileBrowser({
     if (dragCounter.current === 0) setIsDragging(false);
   }, []);
 
+  // ── Conditional Drop Logic ──────────────────────────────────────────────
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
@@ -108,6 +107,11 @@ export function FileBrowser({
       setIsDragging(false);
       dragCounter.current = 0;
 
+      // MAC / LINUX BYPASS: Do nothing with HTML5.
+      // The global wails:file-drop native event in App.tsx will handle this!
+      if (os !== "windows") return;
+
+      // WINDOWS ONLY: HTML5 Fallback
       if (!e.dataTransfer) return;
 
       const validFiles: File[] = [];
@@ -132,7 +136,8 @@ export function FileBrowser({
       if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
         for (let i = 0; i < e.dataTransfer.files.length; i++) {
           const file = e.dataTransfer.files[i];
-          if (file.size >= 4294967296) {
+          // Strictly cap Windows HTML5 drops to 2GB (2,147,483,648 bytes)
+          if (file.size >= 2147483648) {
             hasLargeFile = true;
           } else {
             validFiles.push(file);
@@ -145,19 +150,18 @@ export function FileBrowser({
         return;
       }
       if (hasLargeFile) {
-        onError("One or more files are too large (4GB limit).");
+        onError("Please use button to upload large files");
       }
       if (validFiles.length > 0) {
-        onDropUpload(validFiles);
+        onHtmlDropUpload(validFiles);
       }
     },
-    [onDropUpload, onError],
+    [os, onHtmlDropUpload, onError],
   );
 
-  // ── Empty / no-device state ────────────────────────────────────────────────
   if (!activeDeviceIP) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center gap-4 bg-surface text-dull">
+      <div className="flex-1 flex flex-col items-center justify-center gap-4 bg-bg-base text-dull">
         <div className="relative">
           <div className="w-20 h-20 rounded-2xl border-2 border-dashed border-dull flex items-center justify-center">
             <Layers size={32} strokeWidth={1} />
@@ -202,6 +206,9 @@ export function FileBrowser({
           <div className="text-center">
             <p className="text-[15px] font-semibold text-accent">
               Drop to upload
+            </p>
+            <p className="text-[11px] text-accent/80 mt-1">
+              {os === "windows" ? "Max 2GB per file" : "Secure Device Transfer"}
             </p>
           </div>
         </div>
@@ -339,7 +346,12 @@ export function FileBrowser({
           {uploading ? (
             <Loader2 size={24} className="animate-spin" />
           ) : (
-            <Plus size={24} className={showFabMenu ? "rotate-45": "" + " transition-all duration-200"} />
+            <Plus
+              size={24}
+              className={
+                showFabMenu ? "rotate-45" : "" + " transition-all duration-200"
+              }
+            />
           )}
         </button>
       </div>
