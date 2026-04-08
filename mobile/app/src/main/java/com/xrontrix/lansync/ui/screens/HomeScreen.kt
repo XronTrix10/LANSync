@@ -13,8 +13,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -34,9 +32,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.sp
 import com.xrontrix.lansync.data.RecentDevice
 import com.xrontrix.lansync.ui.theme.*
+import com.xrontrix.lansync.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -124,7 +124,7 @@ fun HomeScreen(
             ) {
                 // Properly centered content inside the card
                 Column(modifier = Modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Filled.WifiOff, contentDescription = "No Wifi", tint = Accent, modifier = Modifier.size(40.dp))
+                    Icon(painter = painterResource(R.drawable.filled_wifi_off), contentDescription = "No Wifi", tint = Accent, modifier = Modifier.size(40.dp))
                     Spacer(modifier = Modifier.height(12.dp))
                     Text("Network Disconnected", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                     Spacer(modifier = Modifier.height(4.dp))
@@ -217,7 +217,7 @@ fun HomeScreen(
                         if (isConnecting) {
                             CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Accent, strokeWidth = 2.dp)
                         } else {
-                            Icon(Icons.Filled.Link, contentDescription = "Connect", modifier = Modifier.size(18.dp))
+                            Icon(painter = painterResource(R.drawable.connect), contentDescription = "Connect", modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(8.dp))
                             Text("Connect", fontWeight = FontWeight.Bold)
                         }
@@ -274,7 +274,7 @@ fun HomeScreen(
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
                                     Icon(
-                                        imageVector = Icons.Filled.Close,
+                                        painter = painterResource(R.drawable.close),
                                         contentDescription = "Disconnect",
                                         tint = RedAccent,
                                         modifier = Modifier.size(16.dp)
@@ -298,14 +298,14 @@ fun HomeScreen(
                             }
                         ) {
                             Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Filled.History, contentDescription = "History", tint = TextMuted)
+                                Icon(painter = painterResource(R.drawable.history), contentDescription = "History", tint = TextMuted)
                                 Spacer(modifier = Modifier.width(16.dp))
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(device.name, color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                                     Text(device.ip, color = TextMuted.copy(alpha = 0.7f), fontSize = 11.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.padding(top = 2.dp))
                                 }
                                 IconButton(onClick = { onRemoveRecentDevice(device.ip) }, modifier = Modifier.size(32.dp)) {
-                                    Icon(Icons.Filled.Close, contentDescription = "Remove", tint = TextMuted.copy(alpha = 0.5f))
+                                    Icon(painter = painterResource(R.drawable.close), contentDescription = "Remove", tint = TextMuted.copy(alpha = 0.5f))
                                 }
                             }
                         }

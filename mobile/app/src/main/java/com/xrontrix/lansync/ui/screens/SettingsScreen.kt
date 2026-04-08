@@ -6,21 +6,19 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.Save
-import androidx.compose.material.icons.filled.SnippetFolder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xrontrix.lansync.ui.theme.*
+import com.xrontrix.lansync.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -110,7 +108,7 @@ fun SettingsScreen(
                     colors = ButtonDefaults.buttonColors(containerColor = Accent.copy(alpha = 0.15f), contentColor = Accent),
                     modifier = Modifier.fillMaxWidth().height(45.dp), shape = RoundedCornerShape(10.dp)
                 ) {
-                    Icon(Icons.Filled.Save, contentDescription = "Save", modifier = Modifier.size(18.dp))
+                    Icon(painter = painterResource(id = R.drawable.filled_save), contentDescription = "Save", modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Save", fontWeight = FontWeight.Bold)
                 }
@@ -128,7 +126,7 @@ fun SettingsScreen(
             modifier = Modifier.fillMaxWidth(), onClick = { downloadPicker.launch(null) }
         ) {
             Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Filled.Folder, contentDescription = null, tint = Accent)
+                Icon(painter = painterResource(R.drawable.filled_folder), contentDescription = null, tint = Accent)
                 Spacer(modifier = Modifier.width(16.dp))
                 Column {
                     Text("Download Folder", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
@@ -149,7 +147,7 @@ fun SettingsScreen(
                 modifier = Modifier.weight(1f), onClick = { exposedPicker.launch(null) }
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Icon(Icons.Filled.Folder, contentDescription = null, tint = LightAccent)
+                    Icon(painter = painterResource(R.drawable.filled_folder), contentDescription = null, tint = LightAccent)
                     Spacer(modifier = Modifier.height(12.dp))
                     Text("Exposed Folder", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(2.dp))
@@ -169,7 +167,7 @@ fun SettingsScreen(
                 }
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Icon(Icons.Filled.SnippetFolder, contentDescription = null, tint = RedAccent)
+                    Icon(painter = painterResource(R.drawable.filled_root_folder), contentDescription = null, tint = RedAccent)
                     Spacer(modifier = Modifier.height(12.dp))
                     Text("Share Root", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(2.dp))

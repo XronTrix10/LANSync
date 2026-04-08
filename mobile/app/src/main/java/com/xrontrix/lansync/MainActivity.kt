@@ -15,8 +15,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -52,7 +50,7 @@ class MainActivity : ComponentActivity(), BridgeCallback {
     private var isNetworkAvailable = mutableStateOf(false)
     private lateinit var connectivityManager: ConnectivityManager
     private lateinit var prefsManager: PreferencesManager
-    private lateinit var transferManager: FileTransferManager // ── NEW: Transfer Manager
+    private lateinit var transferManager: FileTransferManager // ── Transfer Manager
 
     private val activeDeviceIP = mutableStateOf<String?>(null)
     private val isConnecting = mutableStateOf(false)
@@ -141,7 +139,7 @@ class MainActivity : ComponentActivity(), BridgeCallback {
                                         modifier = Modifier.size(64.dp)
                                     ) {
                                         Box(contentAlignment = Alignment.Center) {
-                                            Icon(Icons.Filled.Security, contentDescription = null, tint = Accent, modifier = Modifier.size(28.dp))
+                                            Icon(painter = painterResource(id = R.drawable.filled_security), contentDescription = null, tint = Accent, modifier = Modifier.size(28.dp))
                                         }
                                     }
                                     Spacer(modifier = Modifier.height(16.dp))

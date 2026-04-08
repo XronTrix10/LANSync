@@ -10,11 +10,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.Folder
-import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.*
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.*
@@ -36,9 +31,6 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.ui.draw.rotate
 import androidx.activity.compose.BackHandler
-import androidx.compose.material.icons.automirrored.rounded.InsertDriveFile
-import androidx.compose.material.icons.automirrored.rounded.ListAlt
-import androidx.compose.material.icons.rounded.*
 import androidx.compose.ui.res.painterResource
 import com.xrontrix.lansync.R
 
@@ -70,7 +62,7 @@ fun BrowseScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Filled.Computer, contentDescription = "No Device", tint = Accent, modifier = Modifier.size(48.dp))
+                    Icon(painter = painterResource(R.drawable.filled_computer), contentDescription = "No Device", tint = Accent, modifier = Modifier.size(48.dp))
                     Spacer(modifier = Modifier.height(16.dp))
                     Text("No Device Connected", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                     Spacer(modifier = Modifier.height(8.dp))
@@ -276,7 +268,7 @@ fun BrowseScreen(
                                     }
                                 }
                             ) {
-                                Icon(Icons.Rounded.Close, contentDescription = "Close", tint = TextMuted)
+                                Icon(painter = painterResource(R.drawable.close), contentDescription = "Close", tint = TextMuted)
                             }
                         }
                     )
@@ -306,7 +298,7 @@ fun BrowseScreen(
                         ) {
                             IconButton(onClick = { isSearchActive = true }) {
                                 Icon(
-                                    imageVector = Icons.Rounded.Search,
+                                    painter = painterResource(R.drawable.search),
                                     contentDescription = "Search",
                                     tint = LightAccent,
                                     modifier = Modifier.size(20.dp)
@@ -321,7 +313,7 @@ fun BrowseScreen(
                 Surface(color = Accent.copy(alpha = 0.1f), modifier = Modifier.fillMaxWidth()) {
                     Row(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = { selectedFiles = emptySet() }, modifier = Modifier.size(32.dp)) {
-                            Icon(Icons.Filled.Close, contentDescription = "Clear", tint = TextPrimary)
+                            Icon(painter = painterResource(R.drawable.close), contentDescription = "Clear", tint = TextPrimary)
                         }
                         Spacer(modifier = Modifier.width(12.dp))
                         Text("${selectedFiles.size} selected", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.weight(1f))
@@ -332,7 +324,7 @@ fun BrowseScreen(
                     Row(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                         Surface(color = Accent.copy(alpha = 0.15f), contentColor = Accent, shape = RoundedCornerShape(10.dp), modifier = Modifier.size(36.dp)) {
                             IconButton(onClick = { onNavigate(parentPath.ifEmpty { "/" }) }, enabled = currentPath != "/") {
-                                Icon(Icons.Filled.ArrowUpward, contentDescription = "Up", modifier = Modifier.size(20.dp), tint = if (currentPath == "/") TextMuted.copy(alpha = 0.3f) else Accent)
+                                Icon(painter = painterResource(R.drawable.arrowup), contentDescription = "Up", modifier = Modifier.size(20.dp), tint = if (currentPath == "/") TextMuted.copy(alpha = 0.3f) else Accent)
                             }
                         }
                         Spacer(modifier = Modifier.width(12.dp))
@@ -361,7 +353,7 @@ fun BrowseScreen(
                         )
                         Spacer(modifier = Modifier.width(12.dp))
                         Surface(color = Accent.copy(alpha = 0.15f), contentColor = Accent, shape = RoundedCornerShape(10.dp), modifier = Modifier.size(36.dp)) {
-                            IconButton(onClick = onRefresh) { Icon(Icons.Filled.Refresh, contentDescription = "Refresh", modifier = Modifier.size(20.dp), tint = Accent) }
+                            IconButton(onClick = onRefresh) { Icon(painter = painterResource(R.drawable.refresh), contentDescription = "Refresh", modifier = Modifier.size(20.dp), tint = Accent) }
                         }
                     }
                 }
@@ -388,11 +380,11 @@ fun BrowseScreen(
                             modifier = Modifier.padding(32.dp)
                         ) {
                             if (isSearchActive) {
-                                Icon(Icons.Rounded.Search, contentDescription = null, modifier = Modifier.size(48.dp), tint = TextMuted.copy(alpha = 0.5f))
+                                Icon(painter = painterResource(R.drawable.search), contentDescription = null, modifier = Modifier.size(48.dp), tint = TextMuted.copy(alpha = 0.5f))
                                 Spacer(modifier = Modifier.height(12.dp))
                                 Text("No matching files found", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Medium)
                             } else {
-                                Icon(Icons.Outlined.Folder, contentDescription = null, modifier = Modifier.size(48.dp), tint = Accent.copy(alpha = 0.5f))
+                                Icon(painter = painterResource(R.drawable.outlined_folder), contentDescription = null, modifier = Modifier.size(48.dp), tint = Accent.copy(alpha = 0.5f))
                                 Spacer(modifier = Modifier.height(12.dp))
                                 Text("This folder is empty", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                                 Spacer(modifier = Modifier.height(4.dp))
@@ -448,7 +440,7 @@ fun BrowseScreen(
                 modifier = Modifier.padding(bottom = 12.dp),
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Icon(Icons.Filled.ContentPasteGo, contentDescription = "Share Clipboard")
+                Icon(painter = painterResource(R.drawable.content_paste_go), contentDescription = "Share Clipboard")
             }
 
             if (selectedFiles.isNotEmpty()) {
@@ -496,7 +488,7 @@ fun BrowseScreen(
                             ) {
                                 Text("Upload File", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
                                 Spacer(modifier = Modifier.width(12.dp))
-                                Icon(Icons.Filled.UploadFile, tint = Accent, contentDescription = null, modifier = Modifier.size(22.dp))
+                                Icon(painter = painterResource(R.drawable.upload_file), tint = Accent, contentDescription = null, modifier = Modifier.size(22.dp))
                             }
                         }
 
@@ -512,7 +504,7 @@ fun BrowseScreen(
                             ) {
                                 Text("Upload Folder", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
                                 Spacer(modifier = Modifier.width(12.dp))
-                                Icon(Icons.Filled.Folder, tint = Purple, contentDescription = null, modifier = Modifier.size(22.dp))
+                                Icon(painter = painterResource(R.drawable.filled_folder), tint = Purple, contentDescription = null, modifier = Modifier.size(22.dp))
                             }
                         }
 
@@ -528,7 +520,7 @@ fun BrowseScreen(
                             ) {
                                 Text("Create Folder", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
                                 Spacer(modifier = Modifier.width(12.dp))
-                                Icon(Icons.Filled.CreateNewFolder, tint = LightAccent, contentDescription = null, modifier = Modifier.size(22.dp))
+                                Icon(painter = painterResource(R.drawable.create_new_folder), tint = LightAccent, contentDescription = null, modifier = Modifier.size(22.dp))
                             }
                         }
                     }
@@ -542,7 +534,7 @@ fun BrowseScreen(
                     shape = RoundedCornerShape(cornerRadius)
                 ) {
                     Icon(
-                        imageVector = Icons.Filled.Add,
+                        painter = painterResource(R.drawable.add),
                         contentDescription = "Add Actions",
                         modifier = Modifier.rotate(rotation)
                     )
@@ -566,15 +558,15 @@ fun getFileExtension(name: String): String = name.substringAfterLast('.', "").lo
 fun DynamicFileIcon(name: String, isDir: Boolean, modifier: Modifier = Modifier) {
     val ext = getFileExtension(name)
     val icon = when {
-        isDir -> Icons.Outlined.Folder
-        imageExts.contains(ext) -> Icons.Rounded.Image
-        videoExts.contains(ext) -> Icons.Rounded.Movie
-        audioExts.contains(ext) -> Icons.Rounded.Audiotrack
-        archiveExts.contains(ext) -> Icons.Rounded.Archive
-        codeExts.contains(ext) -> Icons.Rounded.Code
-        docExts.contains(ext) -> Icons.Rounded.Description
-        sheetExts.contains(ext) -> Icons.AutoMirrored.Rounded.ListAlt
-        else -> Icons.AutoMirrored.Rounded.InsertDriveFile
+        isDir -> painterResource(R.drawable.outlined_folder)
+        imageExts.contains(ext) -> painterResource(R.drawable.image)
+        videoExts.contains(ext) -> painterResource(R.drawable.movie)
+        audioExts.contains(ext) -> painterResource(R.drawable.audio_file)
+        archiveExts.contains(ext) -> painterResource(R.drawable.archive)
+        codeExts.contains(ext) -> painterResource(R.drawable.code)
+        docExts.contains(ext) -> painterResource(R.drawable.description)
+        sheetExts.contains(ext) -> painterResource(R.drawable.list_alt)
+        else -> painterResource(R.drawable.unknown_file)
     }
     val tint = when {
         isDir -> Accent
@@ -587,16 +579,16 @@ fun DynamicFileIcon(name: String, isDir: Boolean, modifier: Modifier = Modifier)
         sheetExts.contains(ext) -> Color(0xFF6EE7B7)
         else -> TextMuted
     }
-    Icon(imageVector = icon, contentDescription = null, tint = tint, modifier = modifier)
+    Icon(painter = icon, contentDescription = null, tint = tint, modifier = modifier)
 }
 
 @Composable
 fun DeviceIcon(os: String, tint: Color, modifier: Modifier = Modifier) {
     val lower = os.lowercase()
     val icon = when (lower) {
-        "android", "ios" -> Icons.Rounded.Smartphone
-        "windows", "darwin", "linux", "mac" -> Icons.Rounded.Computer
-        else -> Icons.Rounded.Devices
+        "android", "ios" -> painterResource(R.drawable.mobile)
+        "windows", "darwin", "linux", "mac" -> painterResource(R.drawable.outlined_computer)
+        else -> painterResource(R.drawable.devices)
     }
     Icon(icon, contentDescription = "Device", tint = tint, modifier = modifier)
 }
@@ -609,7 +601,7 @@ fun FileRowItem(file: FileInfo, isSelected: Boolean, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (isSelected) {
-            Icon(Icons.Filled.CheckCircle, contentDescription = "Selected", tint = Accent, modifier = Modifier.size(24.dp))
+            Icon(painter = painterResource(R.drawable.filled_check_circle), contentDescription = "Selected", tint = Accent, modifier = Modifier.size(24.dp))
         } else {
             DynamicFileIcon(name = file.name, isDir = file.isDir, modifier = Modifier.size(24.dp))
         }
