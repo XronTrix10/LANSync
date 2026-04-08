@@ -174,7 +174,7 @@ fun SettingsScreen(
                     Text("Share Root", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = if (exposedFolderUri == "ROOT") "Currently Active" else "Entire Device",
+                        text = if (exposedFolderUri == "ROOT") "Currently active" else "Entire Device",
                         color = if (exposedFolderUri == "ROOT") RedAccent else TextMuted,
                         fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis
                     )

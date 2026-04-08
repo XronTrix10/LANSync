@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AcceptConnection,
   Disconnect,
@@ -66,33 +66,60 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [deviceName, setDeviceName] = useState("");
 
-  const handleSaveSettings = async () => {
-    try {
-      await SaveDeviceName(deviceName);
-      await SaveSharedDir(sharedDir);
-      setShowSettings(false);
-      showToast("Settings saved", "success");
-    } catch (err) {
-      console.error(err);
-      showToast("Failed to save settings", "error");
-    }
-  };
-
-  // ── HYBRID DROP STATE (Cross-Platform Savior) ──
-  // Track state so the global wails listener always knows what folder we are in.
-  const dropStateRef = useRef({ activeDeviceIP, currentPath, devices, os });
+  // ── GLOBAL STATE REF (Cross-Platform Savior) ──
+  // This guarantees that async callbacks NEVER use stale closures.
+  const lastDropTime = useRef<number>(0);
+  const stateRef = useRef({ activeDeviceIP, currentPath, devices, os });
 
   useEffect(() => {
-    dropStateRef.current = { activeDeviceIP, currentPath, devices, os };
+    stateRef.current = { activeDeviceIP, currentPath, devices, os };
   }, [activeDeviceIP, currentPath, devices, os]);
 
-  const getBaseDirName = (path: string) => {
+  const getBaseDirName = useCallback((path: string) => {
     if (!path) return "/";
     const normPath = path.replace(/[\\/]+/g, "/");
     if (normPath === "/" || normPath === "") return "/";
     const segments = normPath.split("/").filter(Boolean);
     return segments.length > 0 ? segments[segments.length - 1] : "/";
-  };
+  }, []);
+
+  const getActivePort = useCallback((ip: string) => {
+    const device = stateRef.current.devices.find((d) => d.ip === ip);
+    return device?.port || "34931";
+  }, []);
+
+  const showToast = useCallback(
+    (message: string, type: "success" | "error", path?: string) => {
+      const id = Date.now();
+      setToasts((prev) => [...prev, { id, message, type, path }]);
+      setTimeout(
+        () => setToasts((prev) => prev.filter((t) => t.id !== id)),
+        6000,
+      );
+    },
+    [],
+  );
+
+  // ── CORE NAVIGATION ──
+  const navigateTo = useCallback(
+    async (path: string, forceIP?: string) => {
+      const targetIP = forceIP || stateRef.current.activeDeviceIP;
+      if (!targetIP) return;
+      setLoading(true);
+      try {
+        const port = getActivePort(targetIP);
+        const result: any = await GetRemoteFiles(targetIP, port, path);
+        setFiles(result.files || []);
+        setCurrentPath(result.path);
+        setParentPath(result.parent);
+      } catch (err: any) {
+        showToast("Access denied: Session may have expired", "error");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [getActivePort, showToast],
+  );
 
   // ── Init ──────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -135,45 +162,36 @@ export default function App() {
     EventsOn("connection_lost", (ip: string) => {
       setDevices((prev) => prev.filter((d) => d.ip !== ip));
       setActiveDeviceIP((current) => (current === ip ? null : current));
-      showToast(`Connection lost or closed`, "error");
+      showToast(`Device got disconnected`, "error");
     });
 
-    // ── WAILS NATIVE OS DROP (Mac / Linux Savior) ──
+    // ── WAILS NATIVE OS DROP ──
     EventsOn(
       "wails:file-drop",
       async (_x: number, _y: number, paths: string[]) => {
         const {
-          activeDeviceIP,
-          currentPath,
-          devices,
+          activeDeviceIP: targetIP,
+          currentPath: path,
           os: currentOs,
-        } = dropStateRef.current;
+        } = stateRef.current;
 
-        // Windows is horribly broken with wails:file-drop. We let the HTML5 fallback handle Windows entirely.
         if (currentOs === "windows") return;
-        if (!activeDeviceIP || !paths || paths.length === 0) return;
+        if (!targetIP || !paths || paths.length === 0) return;
+
+        if (Date.now() - lastDropTime.current < 1000) return;
+        lastDropTime.current = Date.now();
 
         setUploading(true);
         try {
-          const port =
-            devices.find((d) => d.ip === activeDeviceIP)?.port || "34931";
+          const port = getActivePort(targetIP);
+          await PushToAndroid(targetIP, port, path, paths);
 
-          // Bypass web sandbox: Send pure path strings straight to Go.
-          await PushToAndroid(activeDeviceIP, port, currentPath, paths);
-
-          const result: any = await GetRemoteFiles(
-            activeDeviceIP,
-            port,
-            currentPath,
-          );
-          setFiles(result.files || []);
-          setCurrentPath(result.path);
-          setParentPath(result.parent);
+          navigateTo(path, targetIP);
 
           showToast(
             `Successfully uploaded ${paths.length} file(s)`,
             "success",
-            getBaseDirName(currentPath),
+            getBaseDirName(path),
           );
         } catch (err: any) {
           showToast(
@@ -199,15 +217,17 @@ export default function App() {
       EventsOff("connection_lost");
       EventsOff("wails:file-drop");
     };
-  }, []);
+  }, [getActivePort, getBaseDirName, navigateTo, showToast]);
 
+  // Handle active device switching safely
   useEffect(() => {
-    if (activeDeviceIP) navigateTo("/");
-    else {
+    if (activeDeviceIP) {
+      navigateTo("/", activeDeviceIP);
+    } else {
       setFiles([]);
       setCurrentPath("/");
     }
-  }, [activeDeviceIP]);
+  }, [activeDeviceIP, navigateTo]);
 
   // ── Helpers ───────────────────────────────────────────────────────────────
   const addRecentDevice = (device: Device) => {
@@ -233,22 +253,16 @@ export default function App() {
       new Notification(title, { body });
   };
 
-  const showToast = (
-    message: string,
-    type: "success" | "error",
-    path?: string,
-  ) => {
-    const id = Date.now();
-    setToasts((prev) => [...prev, { id, message, type, path }]);
-    setTimeout(
-      () => setToasts((prev) => prev.filter((t) => t.id !== id)),
-      6000,
-    );
-  };
-
-  const getActivePort = () => {
-    const device = devices.find((d) => d.ip === activeDeviceIP);
-    return device?.port || "34931";
+  const handleSaveSettings = async () => {
+    try {
+      await SaveDeviceName(deviceName);
+      await SaveSharedDir(sharedDir);
+      setShowSettings(false);
+      showToast("Settings saved", "success");
+    } catch (err) {
+      console.error(err);
+      showToast("Failed to save settings", "error");
+    }
   };
 
   // ── Device management ─────────────────────────────────────────────────────
@@ -315,31 +329,14 @@ export default function App() {
   };
 
   // ── File operations ───────────────────────────────────────────────────────
-  const navigateTo = async (path: string) => {
-    if (!activeDeviceIP) return;
-    setLoading(true);
-    try {
-      const result: any = await GetRemoteFiles(
-        activeDeviceIP,
-        getActivePort(),
-        path,
-      );
-      setFiles(result.files || []);
-      setCurrentPath(result.path);
-      setParentPath(result.parent);
-    } catch (err: any) {
-      showToast("Access denied. Session may have expired.", "error");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const downloadItem = async (file: FileInfo) => {
-    if (!activeDeviceIP) return;
+    const targetIP = stateRef.current.activeDeviceIP;
+    if (!targetIP) return;
     try {
+      const port = getActivePort(targetIP);
       let savedPath = file.isDir
-        ? await DownloadFolder(activeDeviceIP, getActivePort(), file.path)
-        : await DownloadFile(activeDeviceIP, getActivePort(), file.path);
+        ? await DownloadFolder(targetIP, port, file.path)
+        : await DownloadFile(targetIP, port, file.path);
 
       if (savedPath) {
         showToast(
@@ -353,23 +350,25 @@ export default function App() {
     }
   };
 
-  // ── NATIVE UPLOADS (Always works flawlessly across all OS) ──
   const handleUploadFiles = async () => {
-    if (!activeDeviceIP) return;
+    const targetIP = stateRef.current.activeDeviceIP;
+    const path = stateRef.current.currentPath;
+    if (!targetIP) return;
     try {
       const selectedFiles = await SelectFiles();
       if (!selectedFiles || selectedFiles.length === 0) return;
+
       await PushToAndroid(
-        activeDeviceIP,
-        getActivePort(),
-        currentPath,
+        targetIP,
+        getActivePort(targetIP),
+        path,
         selectedFiles,
       );
-      navigateTo(currentPath);
+      navigateTo(path, targetIP);
       showToast(
         `${selectedFiles.length} file(s) successfully uploaded`,
         "success",
-        getBaseDirName(currentPath),
+        getBaseDirName(path),
       );
     } catch (err: any) {
       showToast(`Upload failed: ${err.message || String(err)}`, "error");
@@ -377,21 +376,24 @@ export default function App() {
   };
 
   const handleUploadFolder = async () => {
-    if (!activeDeviceIP) return;
+    const targetIP = stateRef.current.activeDeviceIP;
+    const path = stateRef.current.currentPath;
+    if (!targetIP) return;
     try {
       const selectedFolder = await SelectDirectory();
       if (!selectedFolder) return;
+
       await PushFolderToAndroid(
-        activeDeviceIP,
-        getActivePort(),
-        currentPath,
+        targetIP,
+        getActivePort(targetIP),
+        path,
         selectedFolder,
       );
-      navigateTo(currentPath);
+      navigateTo(path, targetIP);
       showToast(
         `Folder successfully uploaded`,
         "success",
-        getBaseDirName(currentPath),
+        getBaseDirName(path),
       );
     } catch (err: any) {
       showToast(`Folder upload failed: ${err.message || String(err)}`, "error");
@@ -399,20 +401,23 @@ export default function App() {
   };
 
   const handleCreateFolder = async (folderName: string) => {
-    if (!activeDeviceIP || !folderName.trim()) return;
+    const targetIP = stateRef.current.activeDeviceIP;
+    const path = stateRef.current.currentPath;
+    if (!targetIP || !folderName.trim()) return;
+
     setLoading(true);
     try {
       await MakeDirectory(
-        activeDeviceIP,
-        getActivePort(),
-        currentPath,
+        targetIP,
+        getActivePort(targetIP),
+        path,
         folderName.trim(),
       );
-      navigateTo(currentPath);
+      navigateTo(path, targetIP);
       showToast(
         `Folder "${folderName}" created`,
         "success",
-        getBaseDirName(currentPath),
+        getBaseDirName(path),
       );
     } catch (err: any) {
       showToast(
@@ -424,30 +429,30 @@ export default function App() {
     }
   };
 
-  // ── WINDOWS FALLBACK (HTML5 Fetch Upload) ──
   const handleHtmlDropUpload = async (droppedFiles: File[]) => {
-    if (!activeDeviceIP) return;
-    if (os !== "windows") return;
+    const targetIP = stateRef.current.activeDeviceIP;
+    const path = stateRef.current.currentPath;
+    const currentOs = stateRef.current.os;
 
+    if (!targetIP) return;
+    if (currentOs !== "windows") return;
+
+    lastDropTime.current = Date.now();
     setUploading(true);
     let successCount = 0;
 
     try {
-      if (typeof GetSessionToken !== "function") {
-        throw new Error(
-          "Wails bindings out of date. Please run 'wails generate module'.",
-        );
-      }
-
-      const token = await GetSessionToken(activeDeviceIP);
+      const token = await GetSessionToken(targetIP);
       if (!token) throw new Error("Session expired. Please reconnect.");
+
+      const port = getActivePort(targetIP);
 
       for (const file of droppedFiles) {
         const formData = new FormData();
         formData.append("files", file);
 
         const res = await fetch(
-          `http://${activeDeviceIP}:${getActivePort()}/api/files/upload?dir=${encodeURIComponent(currentPath)}&name=${encodeURIComponent(file.name)}`,
+          `http://${targetIP}:${port}/api/files/upload?dir=${encodeURIComponent(path)}&name=${encodeURIComponent(file.name)}`,
           {
             method: "POST",
             headers: { Authorization: `Bearer ${token}` },
@@ -459,11 +464,11 @@ export default function App() {
         else throw new Error("Server rejected the file.");
       }
 
-      navigateTo(currentPath);
+      navigateTo(path, targetIP);
       showToast(
         `Successfully uploaded ${successCount} file(s)`,
         "success",
-        getBaseDirName(currentPath),
+        getBaseDirName(path),
       );
     } catch (err: any) {
       showToast(`Drop upload failed: ${err.message || String(err)}`, "error");
@@ -472,12 +477,12 @@ export default function App() {
     }
   };
 
-  // ── CLIPBOARD FEATURE ──
   const handleShareClipboard = async () => {
-    if (!activeDeviceIP) return;
+    const targetIP = stateRef.current.activeDeviceIP;
+    if (!targetIP) return;
     setLoading(true);
     try {
-      await ShareClipboardText(activeDeviceIP, getActivePort());
+      await ShareClipboardText(targetIP, getActivePort(targetIP));
       showToast(`Desktop clipboard sent to device`, "success");
     } catch (err: any) {
       showToast(
@@ -528,7 +533,7 @@ export default function App() {
             deviceRootPath={""}
             loading={loading}
             uploading={uploading}
-            onNavigate={navigateTo}
+            onNavigate={(path) => navigateTo(path)}
             onDownload={downloadItem}
             onUploadFiles={handleUploadFiles}
             onUploadFolder={handleUploadFolder}
