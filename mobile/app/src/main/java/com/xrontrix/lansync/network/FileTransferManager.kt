@@ -61,10 +61,8 @@ class FileTransferManager(private val context: Context) {
         if (token.isEmpty()) return
 
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-            val channel = NotificationChannel("upload_channel", "File Uploads", NotificationManager.IMPORTANCE_LOW)
-            notificationManager.createNotificationChannel(channel)
-        }
+        val channel = NotificationChannel("upload_channel", "File Uploads", NotificationManager.IMPORTANCE_LOW)
+        notificationManager.createNotificationChannel(channel)
 
         Thread {
             var successCount = 0
@@ -171,10 +169,8 @@ class FileTransferManager(private val context: Context) {
 
     fun downloadFiles(ip: String, files: List<FileInfo>) {
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-            val channel = NotificationChannel("download_channel", "File Downloads", NotificationManager.IMPORTANCE_LOW)
-            notificationManager.createNotificationChannel(channel)
-        }
+        val channel = NotificationChannel("download_channel", "File Downloads", NotificationManager.IMPORTANCE_LOW)
+        notificationManager.createNotificationChannel(channel)
 
         Thread {
             var successCount = 0
@@ -214,11 +210,17 @@ class FileTransferManager(private val context: Context) {
                     val connection = url.openConnection() as HttpURLConnection
                     connection.requestMethod = "GET"
                     connection.setRequestProperty("Authorization", "Bearer $token")
+
+                    // ── Force raw bytes so the server sends the Content-Length header ──
+                    connection.setRequestProperty("Accept-Encoding", "identity")
                     connection.connect()
 
                     if (connection.responseCode != 200) throw Exception("Server returned ${connection.responseCode}")
 
-                    val fileLength = connection.contentLength.toLong()
+                    // ── Bulletproof fallback using the file.size we already know! ──
+                    val reportedLength = connection.contentLengthLong
+                    val fileLength = if (reportedLength > 0) reportedLength else file.size
+
                     val input = connection.inputStream
 
                     val destFile = File(dir, file.name)
