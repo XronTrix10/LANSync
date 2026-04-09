@@ -296,7 +296,7 @@ class MainActivity : ComponentActivity(), BridgeCallback {
                                 onCreateFolder = { folderName ->
                                     activeDeviceIP.value?.let { ip -> createRemoteFolder(ip, currentPath.value, folderName) }
                                 },
-                                // ── NEW: Transfer Manager Callbacks ──
+                                // ── Transfer Manager Callbacks ──
                                 onUploadFiles = { uris ->
                                     activeDeviceIP.value?.let { ip ->
                                         isLoadingFiles.value = true
