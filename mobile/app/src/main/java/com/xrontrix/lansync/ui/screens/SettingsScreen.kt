@@ -59,16 +59,14 @@ fun SettingsScreen(
     fun formatUriDisplay(uri: String): String {
         if (uri == "ROOT") return "Entire Device Storage"
         if (uri.isBlank()) return "Default (Download/LANSync)"
-        return try {
+        return runCatching {
             val decoded = java.net.URLDecoder.decode(uri, "UTF-8")
             if (decoded.contains("primary:")) {
                 "/" + decoded.substringAfterLast("primary:")
             } else {
                 "Custom Folder Selected"
             }
-        } catch (e: Exception) {
-            "Custom Folder Selected"
-        }
+        }.getOrDefault("Custom Folder Selected")
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(20.dp)) {
@@ -177,11 +175,11 @@ fun SettingsScreen(
                         onUpdateExposedFolder("ROOT")
                     } else {
                         // Request the permission
-                        try {
+                        runCatching {
                             val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
                             intent.data = "package:${context.packageName}".toUri()
                             context.startActivity(intent)
-                        } catch (e: Exception) {
+                        }.onFailure{
                             val intent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
                             context.startActivity(intent)
                         }

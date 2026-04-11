@@ -1,11 +1,11 @@
 package com.xrontrix.lansync
 
-import android.content.Context
 import android.content.Intent
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkRequest
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -17,6 +17,8 @@ import com.xrontrix.lansync.network.FileTransferManager
 import com.xrontrix.lansync.ui.MainScreen
 import com.xrontrix.lansync.ui.theme.LansyncTheme
 import com.xrontrix.lansync.viewmodel.MainViewModel
+import java.net.Inet4Address
+import java.net.NetworkInterface
 
 class MainActivity : ComponentActivity() {
 
@@ -24,19 +26,19 @@ class MainActivity : ComponentActivity() {
     private lateinit var connectivityManager: ConnectivityManager
 
     private val networkCallback = object : ConnectivityManager.NetworkCallback() {
-        override fun onAvailable(network: Network) { 
+        override fun onAvailable(network: Network) {
             val ip = getLocalIPAddress()
             viewModel.currentLocalIP.value = ip
             viewModel.isNetworkAvailable.value = ip != null
             if (ip != null) {
-                try { Bridge.updateLocalIP(ip) } catch (e: Exception) {}
+                runCatching { Bridge.updateLocalIP(ip) }
             }
         }
-        override fun onLost(network: Network) { 
+        override fun onLost(network: Network) {
             val ip = getLocalIPAddress()
             viewModel.currentLocalIP.value = ip
             viewModel.isNetworkAvailable.value = ip != null
-            try { Bridge.updateLocalIP(ip ?: "") } catch (e: Exception) {}
+            runCatching { Bridge.updateLocalIP(ip ?: "") }
         }
     }
 
@@ -61,23 +63,23 @@ class MainActivity : ComponentActivity() {
         setupNetworkMonitoring()
         Bridge.startupWithCallback(viewModel)
 
-        val sharedPrefs = getSharedPreferences("lansync_prefs", Context.MODE_PRIVATE)
-        val savedName = sharedPrefs.getString("device_name", android.os.Build.MODEL) ?: android.os.Build.MODEL
-        try { Bridge.setDeviceName(savedName) } catch (e: Exception) {}
+        val sharedPrefs = getSharedPreferences("lansync_prefs", MODE_PRIVATE)
+        val savedName = sharedPrefs.getString("device_name", Build.MODEL) ?: Build.MODEL
+        runCatching { Bridge.setDeviceName(savedName) }
 
         val exposedUri = sharedPrefs.getString("exposed_folder", "") ?: ""
         if (exposedUri == "ROOT") {
-            try { Bridge.updateExposedDir("ROOT") } catch (e: Exception) {}
+            runCatching { Bridge.updateExposedDir("ROOT") }
         } else if (exposedUri.isNotBlank()) {
-            try { Bridge.updateExposedDir(getRealPathFromURI(exposedUri)) } catch (e: Exception) {}
+            runCatching { Bridge.updateExposedDir(getRealPathFromURI(exposedUri)) }
         }
 
         val savedDownloadUri = sharedPrefs.getString("download_folder", "") ?: ""
         if (savedDownloadUri.isNotBlank()) {
-            try { Bridge.updateDownloadDir(getRealPathFromURI(savedDownloadUri)) } catch (e: Exception) {}
+            runCatching { Bridge.updateDownloadDir(getRealPathFromURI(savedDownloadUri)) }
         }
 
-        try { Bridge.startMobileServer() } catch (e: Exception) { e.printStackTrace() }
+        runCatching { Bridge.startMobileServer() }.onFailure { it.printStackTrace() }
 
         setContent {
             LansyncTheme {
@@ -96,7 +98,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun setupNetworkMonitoring() {
-        connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        connectivityManager = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
         val request = NetworkRequest.Builder().build()
         connectivityManager.registerNetworkCallback(request, networkCallback)
 
@@ -105,22 +107,22 @@ class MainActivity : ComponentActivity() {
         viewModel.isNetworkAvailable.value = ip != null
 
         if (ip != null) {
-            try { Bridge.updateLocalIP(ip) } catch (e: Exception) {}
+            runCatching { Bridge.updateLocalIP(ip) }
         }
     }
 
     private fun checkAndRequestStoragePermissions() {
         if (!android.os.Environment.isExternalStorageManager()) {
-            try {
+            runCatching {
                 val intent = Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
                 intent.data = Uri.fromParts("package", packageName, null)
                 startActivity(intent)
-            } catch (e: Exception) {
+            }.onFailure {
                 startActivity(Intent(android.provider.Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION))
             }
         }
 
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
                 requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 101)
             }
@@ -131,34 +133,35 @@ class MainActivity : ComponentActivity() {
         if (uriString == "ROOT") {
             return android.os.Environment.getExternalStorageDirectory().absolutePath
         }
-        val defaultPath = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS).absolutePath + "/LANSync"
+        val defaultPath = android.os.Environment.getExternalStoragePublicDirectory(
+            android.os.Environment.DIRECTORY_DOWNLOADS
+        ).absolutePath + "/LANSync"
         if (uriString.isBlank()) return defaultPath
-        return try {
+        return runCatching {
             val decoded = java.net.URLDecoder.decode(uriString, "UTF-8")
             if (decoded.contains("primary:")) {
-                val path = decoded.substringAfterLast("primary:")
-                "/storage/emulated/0/$path"
+                "/storage/emulated/0/${decoded.substringAfterLast("primary:")}"
             } else defaultPath
-        } catch (e: Exception) { defaultPath }
+        }.getOrDefault(defaultPath)
     }
 
     private fun getLocalIPAddress(): String? {
-        try {
-            val interfaces = java.net.NetworkInterface.getNetworkInterfaces()
+        runCatching {
+            val interfaces = NetworkInterface.getNetworkInterfaces()
             while (interfaces.hasMoreElements()) {
-                val intf = interfaces.nextElement()
-                val addrs = intf.inetAddresses
-                while (addrs.hasMoreElements()) {
-                    val addr = addrs.nextElement()
-                    if (!addr.isLoopbackAddress && addr is java.net.Inet4Address) {
-                        val ip = addr.hostAddress
+                val networkInterface = interfaces.nextElement()
+                val addresses = networkInterface.inetAddresses
+                while (addresses.hasMoreElements()) {
+                    val address = addresses.nextElement()
+                    if (!address.isLoopbackAddress && address is Inet4Address) {
+                        val ip = address.hostAddress
                         if (ip != null && (ip.startsWith("10.") || ip.startsWith("172.") || ip.startsWith("192.168."))) {
                             return ip
                         }
                     }
                 }
             }
-        } catch (ex: Exception) { }
+        }
         return null
     }
 

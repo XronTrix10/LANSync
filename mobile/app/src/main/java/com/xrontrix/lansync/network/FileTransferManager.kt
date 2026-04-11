@@ -68,7 +68,7 @@ class FileTransferManager(private val context: Context) {
                 conn.requestMethod = "POST"
                 conn.setRequestProperty("Authorization", "Bearer $token")
                 conn.responseCode
-            } catch (e: Exception) {}
+            } catch (_: Exception) {}
         }.start()
         runOnMain { Toast.makeText(context, "Cancelling transfers...", Toast.LENGTH_SHORT).show() }
     }
@@ -93,7 +93,7 @@ class FileTransferManager(private val context: Context) {
     }
 
     private fun uploadSingleFile(ip: String, token: String, remotePath: String, uri: Uri, fileName: String): Boolean {
-        return try {
+        return runCatching {
             val encodedPath = URLEncoder.encode(remotePath, "UTF-8").replace("+", "%20")
             val url = URL("http://$ip:34931/api/files/upload?dir=$encodedPath")
             val connection = url.openConnection() as HttpURLConnection
@@ -125,7 +125,7 @@ class FileTransferManager(private val context: Context) {
             val code = connection.responseCode
             connection.disconnect()
             code == 200
-        } catch (e: Exception) { false }
+        }.getOrDefault(false)
     }
 
     fun uploadFiles(ip: String, currentPath: String, uris: List<Uri>, onComplete: () -> Unit) {
@@ -192,7 +192,7 @@ class FileTransferManager(private val context: Context) {
         isCancelled.set(false)
 
         Thread {
-            try {
+            runCatching {
                 val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, DocumentsContract.getTreeDocumentId(treeUri))
                 var rootFolderName = "UploadedFolder"
 
@@ -242,7 +242,7 @@ class FileTransferManager(private val context: Context) {
                     }
                     onComplete()
                 }
-            } catch (e: Exception) {
+            }.onFailure{
                 runOnMain {
                     Toast.makeText(context, "Folder upload failed", Toast.LENGTH_SHORT).show()
                     onError()
@@ -271,7 +271,7 @@ class FileTransferManager(private val context: Context) {
                     if (decoded.contains("primary:")) {
                         downloadPath = Environment.getExternalStorageDirectory().absolutePath + "/" + decoded.substringAfterLast("primary:")
                     }
-                } catch (e: Exception) {}
+                } catch (_: Exception) {}
             }
 
             val dir = File(downloadPath)

@@ -75,8 +75,6 @@ fun BrowseScreen(
 
     var selectedFiles by remember { mutableStateOf(setOf<FileInfo>()) }
     var showCreateFolderDialog by remember { mutableStateOf(false) }
-    var newFolderName by remember { mutableStateOf("") }
-    var folderError by remember { mutableStateOf("") }
     var searchQuery by remember { mutableStateOf("") }
     var isSearchActive by remember { mutableStateOf(false) }
 
@@ -110,11 +108,12 @@ fun BrowseScreen(
     }
 
     if (showCreateFolderDialog) {
+        var newFolderName by remember { mutableStateOf("") }
+        var folderError by remember { mutableStateOf("") }
+
         androidx.compose.ui.window.Dialog(
             onDismissRequest = {
                 showCreateFolderDialog = false
-                newFolderName = ""
-                folderError = ""
             },
             properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
         ) {
@@ -177,8 +176,6 @@ fun BrowseScreen(
                             TextButton(
                                 onClick = {
                                     showCreateFolderDialog = false
-                                    newFolderName = ""
-                                    folderError = ""
                                 }
                             ) {
                                 Text("Cancel", color = TextMuted, fontWeight = FontWeight.Medium)
@@ -203,8 +200,6 @@ fun BrowseScreen(
                                     }
 
                                     onCreateFolder(trimmed)
-                                    newFolderName = ""
-                                    folderError = ""
                                     showCreateFolderDialog = false
                                 },
                                 enabled = newFolderName.trim().isNotEmpty(),
@@ -544,13 +539,16 @@ fun BrowseScreen(
     }
 }
 
-val imageExts = setOf("jpg", "jpeg", "png", "gif", "webp", "heic", "svg", "bmp", "ico", "tiff")
-val videoExts = setOf("mp4", "mov", "avi", "mkv", "webm", "flv", "wmv", "m4v", "3gp")
-val audioExts = setOf("mp3", "flac", "wav", "aac", "ogg", "m4a", "opus", "wma")
-val archiveExts = setOf("zip", "rar", "tar", "gz", "bz2", "7z", "xz", "dmg", "iso", "apk")
-val codeExts = setOf("js", "ts", "tsx", "jsx", "py", "go", "rs", "java", "kt", "swift", "c", "cpp", "h", "cs", "php", "rb", "sh", "bash", "json", "yaml", "yml", "toml", "xml", "html", "css", "scss", "sql")
-val docExts = setOf("txt", "md", "pdf", "doc", "docx", "rtf", "pages", "odt", "epub")
-val sheetExts = setOf("xls", "xlsx", "csv", "numbers", "ods")
+@Suppress("SpellCheckingInspection")
+private object FileTypes {
+    val image   = setOf("jpg", "jpeg", "png", "gif", "webp", "heic", "svg", "bmp", "ico", "tiff")
+    val video   = setOf("mp4", "mov", "avi", "mkv", "webm", "flv", "wmv", "m4v", "3gp")
+    val audio   = setOf("mp3", "flac", "wav", "aac", "ogg", "m4a", "opus", "wma")
+    val archive = setOf("zip", "rar", "tar", "gz", "bz2", "7z", "xz", "dmg", "iso", "apk")
+    val code    = setOf("js", "ts", "tsx", "jsx", "py", "go", "rs", "java", "kt", "swift", "c", "cpp", "h", "cs", "php", "rb", "sh", "bash", "json", "yaml", "yml", "toml", "xml", "html", "css", "scss", "sql")
+    val doc     = setOf("txt", "md", "pdf", "doc", "docx", "rtf", "pages", "odt", "epub")
+    val sheet   = setOf("xls", "xlsx", "csv", "numbers", "ods")
+}
 
 fun getFileExtension(name: String): String = name.substringAfterLast('.', "").lowercase()
 
@@ -558,26 +556,26 @@ fun getFileExtension(name: String): String = name.substringAfterLast('.', "").lo
 fun DynamicFileIcon(name: String, isDir: Boolean, modifier: Modifier = Modifier) {
     val ext = getFileExtension(name)
     val icon = when {
-        isDir -> painterResource(R.drawable.outlined_folder)
-        imageExts.contains(ext) -> painterResource(R.drawable.image)
-        videoExts.contains(ext) -> painterResource(R.drawable.movie)
-        audioExts.contains(ext) -> painterResource(R.drawable.audio_file)
-        archiveExts.contains(ext) -> painterResource(R.drawable.archive)
-        codeExts.contains(ext) -> painterResource(R.drawable.code)
-        docExts.contains(ext) -> painterResource(R.drawable.description)
-        sheetExts.contains(ext) -> painterResource(R.drawable.list_alt)
-        else -> painterResource(R.drawable.unknown_file)
+        isDir                    -> painterResource(R.drawable.outlined_folder)
+        ext in FileTypes.image   -> painterResource(R.drawable.image)
+        ext in FileTypes.video   -> painterResource(R.drawable.movie)
+        ext in FileTypes.audio   -> painterResource(R.drawable.audio_file)
+        ext in FileTypes.archive -> painterResource(R.drawable.archive)
+        ext in FileTypes.code    -> painterResource(R.drawable.code)
+        ext in FileTypes.doc     -> painterResource(R.drawable.description)
+        ext in FileTypes.sheet   -> painterResource(R.drawable.list_alt)
+        else                     -> painterResource(R.drawable.unknown_file)
     }
     val tint = when {
-        isDir -> Accent
-        imageExts.contains(ext) -> Purple
-        videoExts.contains(ext) -> Color(0xFFF87171)
-        audioExts.contains(ext) -> Color(0xFF34D399)
-        archiveExts.contains(ext) -> Color(0xFFF0A44A)
-        codeExts.contains(ext) -> Color(0xFF00C9A7)
-        docExts.contains(ext) -> Color(0xFF93C5FD)
-        sheetExts.contains(ext) -> Color(0xFF6EE7B7)
-        else -> TextMuted
+        isDir                    -> Accent
+        ext in FileTypes.image   -> Purple
+        ext in FileTypes.video   -> Color(0xFFF87171)
+        ext in FileTypes.audio   -> Color(0xFF34D399)
+        ext in FileTypes.archive -> Color(0xFFF0A44A)
+        ext in FileTypes.code    -> Color(0xFF00C9A7)
+        ext in FileTypes.doc     -> Color(0xFF93C5FD)
+        ext in FileTypes.sheet   -> Color(0xFF6EE7B7)
+        else                     -> TextMuted
     }
     Icon(painter = icon, contentDescription = null, tint = tint, modifier = modifier)
 }

@@ -87,7 +87,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application), B
                         prefsManager.saveRecentDevice(ip, connectedDeviceName)
                         recentDevicesState.value = prefsManager.getRecentDevices()
                         onToggleForegroundService?.invoke(true)
-                        clearIPInputTrigger.value++
+                        clearIPInputTrigger.intValue++
                         Toast.makeText(context, "Connected securely!", Toast.LENGTH_SHORT).show()
                         onResult(true)
                     } else {
@@ -210,7 +210,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application), B
             val response = connection.inputStream.bufferedReader().use { it.readText() }
             val json = JSONObject(response)
             Pair(json.optString("deviceName", "Unknown"), json.optString("os", "windows"))
-        } catch (e: Exception) { null }
+        } catch (_: Exception) { null }
     }
 
     // BridgeCallback methods

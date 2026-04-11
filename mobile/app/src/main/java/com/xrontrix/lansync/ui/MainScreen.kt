@@ -163,7 +163,7 @@ fun MainScreen(
             composable("home") {
                 val sharedPrefs = context.getSharedPreferences("lansync_prefs", Context.MODE_PRIVATE)
                 val savedName = sharedPrefs.getString("device_name", android.os.Build.MODEL) ?: android.os.Build.MODEL
-                try { Bridge.setDeviceName(savedName) } catch (e: Exception) {}
+                runCatching { Bridge.setDeviceName(savedName) }
 
                 HomeScreen(
                     deviceName = savedName,
@@ -174,7 +174,7 @@ fun MainScreen(
                     recentDevices = viewModel.recentDevicesState.value,
                     discoveredDevices = viewModel.discoveredDevices.value,
                     isConnecting = viewModel.isConnecting.value,
-                    clearIPInputTrigger = viewModel.clearIPInputTrigger.value,
+                    clearIPInputTrigger = viewModel.clearIPInputTrigger.intValue,
                     onConnect = { ip -> viewModel.connectToDevice(ip) {} },
                     onDisconnect = {
                         viewModel.activeDeviceIP.value?.let { ip -> viewModel.disconnectFromDevice(ip) }
@@ -237,12 +237,12 @@ fun MainScreen(
                     currentExposedFolderUri = savedExposedUri,
                     onSaveName = { name ->
                         sharedPrefs.edit { putString("device_name", name) }
-                        try { Bridge.setDeviceName(name) } catch (e: Exception) {}
+                        runCatching { Bridge.setDeviceName(name) }
                         Toast.makeText(context, "Saved changes!", Toast.LENGTH_SHORT).show()
                     },
                     onUpdateDownloadFolder = { downloadUri ->
                         sharedPrefs.edit { putString("download_folder", downloadUri) }
-                        try { Bridge.updateDownloadDir(getRealPathFromURI(downloadUri)) } catch (e: Exception) {}
+                        runCatching { Bridge.updateDownloadDir(getRealPathFromURI(downloadUri)) }
 
                         try {
                             context.contentResolver.takePersistableUriPermission(
@@ -256,9 +256,9 @@ fun MainScreen(
                         sharedPrefs.edit { putString("exposed_folder", exposedUri) }
 
                         if (exposedUri == "ROOT") {
-                            try { Bridge.updateExposedDir("ROOT") } catch (e: Exception) {}
+                            runCatching { Bridge.updateExposedDir("ROOT") }
                         } else {
-                            try { Bridge.updateExposedDir(getRealPathFromURI(exposedUri)) } catch (e: Exception) {}
+                            runCatching { Bridge.updateExposedDir(getRealPathFromURI(exposedUri)) }
                             try {
                                 context.contentResolver.takePersistableUriPermission(
                                     exposedUri.toUri(),

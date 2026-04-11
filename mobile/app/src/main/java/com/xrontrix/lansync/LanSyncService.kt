@@ -5,7 +5,6 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
-import android.content.Context
 import android.content.Intent
 import android.os.IBinder
 import android.os.PowerManager
@@ -23,7 +22,7 @@ class LanSyncService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         // 1. Acquire a WakeLock to keep the CPU running when the screen is off
-        val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+        val powerManager = getSystemService(POWER_SERVICE) as PowerManager
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "LanSync::BackgroundSyncLock")
         wakeLock?.acquire(30*60*1000L /*30 minutes*/)
 
