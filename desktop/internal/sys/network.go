@@ -10,7 +10,7 @@ func GetLocalIPs() []string {
 	var validIPs []string
 	ifaces, err := net.Interfaces()
 	if err != nil {
-		return []string{"127.0.0.1"}
+		return []string{}
 	}
 
 	for _, iface := range ifaces {
@@ -30,7 +30,7 @@ func GetLocalIPs() []string {
 				ipStr := ip4.String()
 
 				// Ensure it's a private LAN IP block
-				if strings.HasPrefix(ipStr, "10.") || strings.HasPrefix(ipStr, "172.") || strings.HasPrefix(ipStr, "192.") {
+				if strings.HasPrefix(ipStr, "10.") || strings.HasPrefix(ipStr, "172.") || strings.HasPrefix(ipStr, "192.168.") {
 					validIPs = append(validIPs, ipStr)
 					if len(validIPs) == 3 {
 						return validIPs
@@ -41,7 +41,7 @@ func GetLocalIPs() []string {
 	}
 
 	if len(validIPs) == 0 {
-		return []string{"127.0.0.1"}
+		return []string{}
 	}
 	return validIPs
 }

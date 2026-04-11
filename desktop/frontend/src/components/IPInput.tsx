@@ -4,9 +4,10 @@ type Props = {
   value: string;
   onChange: (val: string) => void;
   onEnter: () => void;
+  disabled?: boolean;
 };
 
-const IPInput = ({ value, onChange, onEnter }: Props) => {
+const IPInput = ({ value, onChange, onEnter, disabled }: Props) => {
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   const getSegments = () => {
@@ -144,13 +145,13 @@ const IPInput = ({ value, onChange, onEnter }: Props) => {
 
   return (
     <div
-      className="
+      className={`
         flex items-center justify-between w-full px-3 py-1.5
         bg-bg-base border border-border rounded-lg
-        focus-within:border-accent focus-within:ring-1 focus-within:ring-accent/20
-        transition-all cursor-text
-      "
-      onClick={() => inputRefs.current[0]?.focus()}
+        transition-all
+        ${disabled ? 'opacity-50 cursor-not-allowed pointer-events-none' : 'focus-within:border-accent focus-within:ring-1 focus-within:ring-accent/20 cursor-text'}
+      `}
+      onClick={() => !disabled && inputRefs.current[0]?.focus()}
     >
       {segments.map((seg, i) => (
         <div key={i} className="flex items-center">
@@ -163,6 +164,7 @@ const IPInput = ({ value, onChange, onEnter }: Props) => {
             onChange={(e) => handleChange(i, e.target.value)}
             onKeyDown={(e) => handleKeyDown(i, e)}
             onPaste={handlePaste}
+            disabled={disabled}
             placeholder={
               i === 0
                 ? "192"

@@ -81,8 +81,7 @@ class MainActivity : ComponentActivity(), BridgeCallback {
         connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         val request = NetworkRequest.Builder().build()
         connectivityManager.registerNetworkCallback(request, networkCallback)
-        val ip = getLocalIPAddress()
-        isNetworkAvailable.value = (ip != null && ip != "127.0.0.1")
+        isNetworkAvailable.value = getLocalIPAddress() != null
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -385,7 +384,10 @@ class MainActivity : ComponentActivity(), BridgeCallback {
                 while (addrs.hasMoreElements()) {
                     val addr = addrs.nextElement()
                     if (!addr.isLoopbackAddress && addr is java.net.Inet4Address) {
-                        return addr.hostAddress
+                        val ip = addr.hostAddress
+                        if (ip != null && (ip.startsWith("10.") || ip.startsWith("172.") || ip.startsWith("192.168."))) {
+                            return ip
+                        }
                     }
                 }
             }

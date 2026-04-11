@@ -7,6 +7,7 @@ import {
   Settings,
   Smartphone,
   Wifi,
+  WifiOff,
   X,
 } from "lucide-react";
 import type { Device } from "../types";
@@ -66,15 +67,30 @@ export function Sidebar({
     <aside className="w-64 shrink-0 flex flex-col gap-y-2 ml-2 mb-2 rounded-xl">
       {/* ── Logo & IPs ── */}
       <div className="px-5 pt-5 pb-4 rounded-xl bg-surface">
-        <div
-          className="text-[14px] font-black tracking-widest mb-3 select-none truncate text-text"
-          title={localDeviceName || "My Device"}
-        >
-          {localDeviceName || "My Device"}
+        <div className="flex justify-between items-center mb-3">
+          <div
+            className="text-[14px] font-black tracking-widest select-none truncate text-text"
+            title={localDeviceName || "My Device"}
+          >
+            {localDeviceName || "My Device"}
+          </div>
+          <button
+            onClick={() => setShowSettings(true)}
+            title="Settings"
+            className="text-light hover:text-text transition-colors duration-200"
+          >
+            <Settings size={15} />
+          </button>
         </div>
 
-        <div className="flex justify-between items-start">
-          <div className="flex flex-col gap-1.5">
+        {localIPs.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-4 bg-red/5 border border-red/20 rounded-lg text-center">
+            <WifiOff size={20} className="text-red mb-1.5" />
+            <p className="text-[11px] font-bold text-text">No Network</p>
+            <p className="text-[9px] text-light mt-0.5">Please connect to a network</p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-1.5 mt-2">
             {localIPs.map((ip, _index) => (
               <div
                 key={ip}
@@ -92,14 +108,7 @@ export function Sidebar({
               </div>
             ))}
           </div>
-          <button
-            onClick={() => setShowSettings(true)}
-            title="Settings"
-            className="text-light hover:text-text transition-colors duration-200"
-          >
-            <Settings size={15} />
-          </button>
-        </div>
+        )}
       </div>
 
       {/* ── Connected Devices ── */}
@@ -124,10 +133,9 @@ export function Sidebar({
                   className={`
                     group w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-lg
                     border transition-all duration-150 relative overflow-hidden
-                    ${
-                      isActive
-                        ? "bg-accent/8 border-accent/30"
-                        : "bg-transparent border-transparent hover:bg-panel hover:border-border"
+                    ${isActive
+                      ? "bg-accent/8 border-accent/30"
+                      : "bg-transparent border-transparent hover:bg-panel hover:border-border"
                     }
                   `}
                 >
@@ -185,10 +193,11 @@ export function Sidebar({
             value={newDeviceIP}
             onChange={onNewDeviceIPChange}
             onEnter={() => isIPComplete && onConnect(newDeviceIP)}
+            disabled={localIPs.length === 0}
           />
           <button
             onClick={() => onConnect(newDeviceIP)}
-            disabled={loading || !isIPComplete}
+            disabled={loading || !isIPComplete || localIPs.length === 0}
             className="
               flex items-center justify-center gap-2 w-full py-2
               text-[12px] font-semibold rounded-lg transition-all
@@ -219,13 +228,13 @@ export function Sidebar({
             {unconnectedRecent.map((device) => (
               <div
                 key={device.ip}
-                onClick={() => onConnect(device.ip)}
-                title="Connect"
-                className="
+                onClick={() => localIPs.length > 0 && onConnect(device.ip)}
+                title={localIPs.length > 0 ? "Connect" : "Can't connect"}
+                className={`
                   group flex items-center gap-2.5 px-3 py-2 rounded-lg
-                  transition-all text-left w-full border cursor-pointer 
-                  bg-transparent hover:bg-panel border-transparent hover:border-border
-                "
+                  transition-all text-left w-full border hover:border-border border-transparent
+                  ${localIPs.length > 0 ? "cursor-pointer bg-transparent hover:bg-panel" : "opacity-50 cursor-not-allowed"}
+                `}
               >
                 <span className="text-dull group-hover:text-light transition-colors duration-200">
                   <DeviceIcon os={device.os} size={16} />
