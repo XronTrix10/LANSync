@@ -48,7 +48,7 @@ fun HomeScreen(
     activeDeviceIP: String?,
     activeDeviceOS: String,
     recentDevices: List<RecentDevice>,
-    discoveredDevices: List<com.xrontrix.lansync.DiscoveredDevice>,
+    discoveredDevices: List<com.xrontrix.lansync.viewmodel.DiscoveredDevice>,
     isConnecting: Boolean,
     onConnect: (String, (Boolean) -> Unit) -> Unit,
     onDisconnect: () -> Unit,
