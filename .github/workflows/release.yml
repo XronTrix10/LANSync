@@ -206,19 +206,38 @@ jobs:
         working-directory: ./mobile
         run: chmod +x ./gradlew
 
-      - name: Build Debug APK
+      - name: Setup Release Keystore
         working-directory: ./mobile
-        run: ./gradlew assembleDebug
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          # 1. Decode the Base64 string back into the .jks file
+          echo "$KEYSTORE_B64" | base64 --decode > app/lansync-release-key.jks
+          
+          # 2. Reconstruct the local.properties file for Gradle
+          cat <<EOF > local.properties
+          KEYSTORE_FILE=lansync-release-key.jks
+          KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD
+          KEY_ALIAS=$KEY_ALIAS
+          KEY_PASSWORD=$KEY_PASSWORD
+          EOF
+
+      - name: Build Release APK
+        working-directory: ./mobile
+        run: ./gradlew assembleRelease
 
       - name: Rename APK
-        working-directory: ./mobile/app/build/outputs/apk/debug
-        run: mv app-debug.apk lansync_debug.apk
+        working-directory: ./mobile/app/build/outputs/apk/release
+        run: mv app-release.apk lansync_release.apk
 
       - name: Upload Android Artifact
         uses: actions/upload-artifact@v4
         with:
           name: android-apk
-          path: mobile/app/build/outputs/apk/debug/lansync_debug.apk
+          path: mobile/app/build/outputs/apk/release/lansync_release.apk
 
   publish:
     name: Publish Release
@@ -249,4 +268,4 @@ jobs:
             lansync-linux-amd64.tar.gz
             artifacts/linux-amd64/lansync-linux-amd64.deb
             artifacts/windows-amd64/lansync-setup.exe
-            artifacts/android-apk/lansync_debug.apk
+            artifacts/android-apk/lansync_release.apk

@@ -62,7 +62,7 @@ Download the latest release for your platform from the Releases page and follow 
 4. *(Optional)* If you encounter any missing dependency errors, run `sudo apt-get install -f` to resolve them. 
 
 ### Android
-1. Download the `lansync-debug.apk` file to your mobile device.
+1. Download the `lansync-release.apk` file to your mobile device.
 2. Tap the downloaded file to open it.
 3. Your device may prompt you that it is not allowed to install unknown apps. Tap **Settings** on the prompt, and toggle on **Allow from this source** (or "Install from unknown sources").
 4. Go back and tap **Install** to complete the setup.
