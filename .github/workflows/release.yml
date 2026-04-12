@@ -231,7 +231,7 @@ jobs:
 
       - name: Rename APK
         working-directory: ./mobile/app/build/outputs/apk/release
-        run: mv app-release.apk lansync_release.apk
+        run: mv *.apk lansync_release.apk
 
       - name: Upload Android Artifact
         uses: actions/upload-artifact@v4
