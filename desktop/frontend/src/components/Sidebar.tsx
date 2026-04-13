@@ -253,12 +253,12 @@ export function Sidebar({
                   ${localIPs.length > 0 ? "cursor-pointer bg-transparent hover:bg-panel" : "opacity-50 cursor-not-allowed"}
                 `}
               >
-                <span className="text-dull group-hover:text-light transition-colors duration-200">
+                <span className="text-accent">
                   <DeviceIcon os={device.os} size={16} />
                 </span>
 
                 <div className="flex-1 min-w-0">
-                  <p className="text-[11px] font-semibold text-text truncate group-hover:text-accent transition-colors duration-200 mb-0.5">
+                  <p className="text-[11px] font-semibold text-text truncate mb-0.5">
                     {device.deviceName}
                   </p>
                   <p className="text-[10px] font-mono text-dull truncate">
@@ -267,7 +267,7 @@ export function Sidebar({
                 </div>
 
                 <div className="transition-colors duration-200 group-hover:bg-accent/10 p-1 rounded-md">
-                  <Cable size={14} className="text-dull group-hover:text-accent transition-colors duration-200" />
+                  <Cable size={14} className="text-accent" />
                 </div>
               </div>
             ))}

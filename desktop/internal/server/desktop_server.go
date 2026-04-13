@@ -79,8 +79,10 @@ func NewDesktopServer(sm *auth.SessionManager, cm *clipboard.ClipboardManager) *
 		startupDir, _ = os.UserHomeDir()
 	}
 
-	homeDir, _ := os.UserHomeDir()
-	os.MkdirAll(filepath.Join(homeDir, "Downloads", "LANSync"), 0755)
+	if stdruntime.GOOS != "android" && stdruntime.GOOS != "ios" {
+		homeDir, _ := os.UserHomeDir()
+		os.MkdirAll(filepath.Join(homeDir, "Downloads", "LANSync"), 0755)
+	}
 
 	return &DesktopServer{
 		sessionManager:   sm,
