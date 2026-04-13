@@ -181,7 +181,6 @@ export function useFileTransfer(
     [activeDeviceIPRef, currentPathRef, getActivePort, navigateTo, showToast],
   );
 
-  // ── UPDATED: XHR Implementation to broadcast progress to Wails Events ──
   const handleHtmlDropUpload = useCallback(
     async (droppedFiles: File[]) => {
       const targetIP = activeDeviceIPRef.current;
@@ -202,7 +201,6 @@ export function useFileTransfer(
           const formData = new FormData();
           formData.append("files", file);
 
-          // Generate a unique ID for the transfer drawer
           const fileId = `ul-html-${Date.now()}-${file.name.replace(/[^a-zA-Z0-9]/g, "")}`;
 
           await new Promise<void>((resolve, reject) => {
@@ -215,33 +213,38 @@ export function useFileTransfer(
 
             let lastLoaded = 0;
             let lastTime = Date.now();
-            let currentSpeed = 0;
+            let currentSpeedMBps = 0;
+            let etaSeconds = 0;
 
             EventsEmit("upload_start");
 
-            // Attach to the upload progress stream
             xhr.upload.onprogress = (event) => {
               if (event.lengthComputable) {
                 const now = Date.now();
                 const timeDiff = (now - lastTime) / 1000;
 
-                // Update speed calculation every 500ms
                 if (timeDiff > 0.5) {
-                  currentSpeed = (event.loaded - lastLoaded) / timeDiff;
+                  const bytesDiff = event.loaded - lastLoaded;
+                  const bytesPerSec = bytesDiff / timeDiff;
+                  currentSpeedMBps = bytesPerSec / (1024 * 1024);
+
+                  if (bytesPerSec > 0) {
+                    etaSeconds = (event.total - event.loaded) / bytesPerSec;
+                  }
                   lastLoaded = event.loaded;
                   lastTime = now;
                 }
 
-                // Proxy the progress into the Wails event bus for the drawer
                 EventsEmit("transfer_progress", {
                   id: fileId,
-                  fileName: file.name,
-                  totalSize: event.total,
+                  filename: file.name,
+                  total: event.total,
                   transferred: event.loaded,
-                  percentage: parseFloat(
+                  percent: parseFloat(
                     ((event.loaded / event.total) * 100).toFixed(1),
                   ),
-                  speed: currentSpeed,
+                  speedMBps: currentSpeedMBps,
+                  etaSeconds: etaSeconds,
                   type: "ul",
                 });
               }
@@ -311,7 +314,6 @@ export function useFileTransfer(
     }
   }, [activeDeviceIPRef, getActivePort, showToast]);
 
-  // Native OS file-drop handler (non-Windows, uses Wails event)
   const handleNativeFileDrop = useCallback(
     async (paths: string[]) => {
       const targetIP = activeDeviceIPRef.current;
