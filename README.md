@@ -84,6 +84,9 @@ Download the latest release for your platform from the Releases page and follow 
 5. Build the final executable: `wails build`
    - `wails build -tags webkit2_41` for later ubuntu
 
+
+> Run for Ubuntu: `sudo apt install libwebkit2gtk-4.1-0 libwebkit2gtk-4.1-dev libsoup-3.0-dev`
+
 ### Building the Android App
 
 **Prerequisites:**
@@ -96,7 +99,7 @@ Before compiling, ensure your development environment is fully set up for Androi
 * **Environment Variables:** Ensure `ANDROID_HOME` and `ANDROID_NDK_HOME` are correctly configured on your system so `gomobile` can locate the compilation tools.
 
 **Build Steps:**
-1. Navigate to the desktop bridge directory and compile the Go library for Android:
+1. Navigate to the `desktop` directory and compile the Go library for Android:
    ```bash
    gomobile bind -target=android -androidapi 30 -o ../mobile/app/libs/bridge.aar ./bridge
    ```
