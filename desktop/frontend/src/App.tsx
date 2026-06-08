@@ -27,7 +27,9 @@ import { loadRecentDevices } from "./utils/deviceUtils";
 export default function App() {
   const [os, setOs] = useState("");
   const [localIPs, setLocalIPs] = useState<string[]>(["Loading..."]);
-  const [activeTransfers, setActiveTransfers] = useState<Record<string, TransferProgress>>({});
+  const [activeTransfers, setActiveTransfers] = useState<
+    Record<string, TransferProgress>
+  >({});
   const [showSettings, setShowSettings] = useState(false);
   const [deviceName, setDeviceName] = useState("");
   const [sharedDir, setSharedDir] = useState("");
@@ -77,7 +79,13 @@ export default function App() {
     handleHtmlDropUpload,
     handleShareClipboard,
     handleNativeFileDrop,
-  } = useFileTransfer(devices, activeDeviceIPRef, currentPathRef, osRef, showToast);
+  } = useFileTransfer(
+    devices,
+    activeDeviceIPRef,
+    currentPathRef,
+    osRef,
+    showToast,
+  );
 
   const loading = connectionLoading || fileLoading;
 
@@ -114,7 +122,10 @@ export default function App() {
     GetHomeDir().then(setHomeDir);
     GetSharedDir().then(setSharedDir);
 
-    const networkPoll = setInterval(() => GetLocalIPs().then(setLocalIPs), 3000);
+    const networkPoll = setInterval(
+      () => GetLocalIPs().then(setLocalIPs),
+      3000,
+    );
 
     EventsOn("transfer_progress", (progress: TransferProgress) => {
       setActiveTransfers((prev) => ({ ...prev, [progress.id]: progress }));
@@ -133,9 +144,12 @@ export default function App() {
     });
     EventsOn("connection_requested", onConnectionRequested);
     EventsOn("connection_lost", onConnectionLost);
-    EventsOn("wails:file-drop", async (_x: number, _y: number, paths: string[]) => {
-      handleNativeFileDrop(paths);
-    });
+    EventsOn(
+      "wails:file-drop",
+      async (_x: number, _y: number, paths: string[]) => {
+        handleNativeFileDrop(paths);
+      },
+    );
 
     if ("Notification" in window && Notification.permission === "default") {
       Notification.requestPermission();
@@ -152,7 +166,12 @@ export default function App() {
       EventsOff("connection_lost");
       EventsOff("wails:file-drop");
     };
-  }, [onConnectionRequested, onConnectionLost, handleNativeFileDrop, setRecentDevices]);
+  }, [
+    onConnectionRequested,
+    onConnectionLost,
+    handleNativeFileDrop,
+    setRecentDevices,
+  ]);
 
   const handleSaveSettings = async () => {
     try {
@@ -193,7 +212,10 @@ export default function App() {
           onConnect={connectToDevice}
           onRemoveRecent={removeRecentDevice}
           setShowSettings={setShowSettings}
-          onRefresh={() => GetLocalIPs().then(setLocalIPs)}
+          onRefresh={() => {
+            GetLocalIPs().then(setLocalIPs);
+            showToast("Network refreshed", "success");
+          }}
         />
 
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden m-2 mt-0 rounded-xl">

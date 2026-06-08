@@ -75,7 +75,7 @@ export function useFileTransfer(
           : await DownloadFile(targetIP, port, file.path);
         if (savedPath) {
           showToast(
-            `Successfully downloaded: ${file.name}`,
+            `${file.isDir ? "Folder" : "File"} saved successfully`,
             "success",
             savedPath,
           );
