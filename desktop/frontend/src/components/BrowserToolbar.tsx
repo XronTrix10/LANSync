@@ -1,4 +1,4 @@
-import { ChevronUp, ClipboardPaste, RefreshCw, Search, X } from "lucide-react";
+import { ChevronUp, RefreshCw, Search, X } from "lucide-react";
 
 interface Props {
   currentPath: string;
@@ -7,7 +7,6 @@ interface Props {
   loading: boolean;
   disabled: boolean;
   onNavigate: (path: string) => void;
-  onShareClipboard: () => void;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
   isSearchActive: boolean;
@@ -21,34 +20,34 @@ export function BrowserToolbar({
   loading,
   disabled,
   onNavigate,
-  onShareClipboard,
   searchQuery,
   setSearchQuery,
   isSearchActive,
   setIsSearchActive,
 }: Props) {
   // ── Path Calculations ──
-  // 1. Squash backslashes and duplicate forward slashes instantly
-  const cleanPath = (p: string) => (p ? p.replace(/\\/g, "/").replace(/\/+/g, "/") : "");
+  const cleanPath = (p: string) =>
+    p ? p.replace(/\\/g, "/").replace(/\/+/g, "/") : "";
 
   let normPath = cleanPath(currentPath);
   let normRoot = cleanPath(deviceRootPath);
 
-  // Remove trailing slashes for clean prefix matching (unless it's just "/")
-  if (normRoot.length > 1 && normRoot.endsWith("/")) normRoot = normRoot.slice(0, -1);
-  if (normPath.length > 1 && normPath.endsWith("/")) normPath = normPath.slice(0, -1);
+  if (normRoot.length > 1 && normRoot.endsWith("/"))
+    normRoot = normRoot.slice(0, -1);
+  if (normPath.length > 1 && normPath.endsWith("/"))
+    normPath = normPath.slice(0, -1);
 
   let displayPath = normPath;
   if (normRoot && normPath.startsWith(normRoot)) {
     displayPath = normPath.substring(normRoot.length);
   }
   if (!displayPath.startsWith("/")) displayPath = "/" + displayPath;
-  displayPath = cleanPath(displayPath); // Final squash to ensure no double slashes formed
+  displayPath = cleanPath(displayPath);
 
-  // 2. Break into segments, strictly stripping out empty strings and stray dots (".")
-  const pathSegments = displayPath.split("/").filter((seg) => seg.trim().length > 0 && seg !== ".");
+  const pathSegments = displayPath
+    .split("/")
+    .filter((seg) => seg.trim().length > 0 && seg !== ".");
 
-  // 3. Determine root state based on segments rather than raw strings
   const isRoot = pathSegments.length === 0;
   const canGoUp = !isRoot && parentPath;
 
@@ -60,7 +59,6 @@ export function BrowserToolbar({
 
   const buildAbsolutePath = (relativePath: string) => {
     if (!normRoot) return relativePath;
-    // Because we stripped the trailing slash from normRoot above, we can safely append relativePath
     return normRoot === "/" ? relativePath : normRoot + relativePath;
   };
 
@@ -99,7 +97,6 @@ export function BrowserToolbar({
         </div>
       ) : (
         <div className="flex-1 flex items-center gap-1 overflow-x-auto hide-scrollbar min-w-0">
-          {/* ── 1. The Root Button ── */}
           <button
             onClick={() => onNavigate("/")}
             className="text-[11px] font-mono text-dull hover:text-accent transition-colors shrink-0 px-1 py-0.5 rounded hover:bg-accent/8"
@@ -107,7 +104,6 @@ export function BrowserToolbar({
             /
           </button>
 
-          {/* ── 2. The Ellipsis (Fixed extra slash here too) ── */}
           {showEllipsis && (
             <span className="flex items-center gap-1 shrink-0">
               <span className="text-[11px] font-mono px-1 py-0.5 text-light select-none">
@@ -116,7 +112,6 @@ export function BrowserToolbar({
             </span>
           )}
 
-          {/* ── 3. The Segments ── */}
           {visibleSegments.map((seg, i) => {
             const originalIndex =
               pathSegments.length - visibleSegments.length + i;
@@ -125,7 +120,6 @@ export function BrowserToolbar({
             const absoluteSegPath = buildAbsolutePath(relativeSegPath);
             const isLast = originalIndex === pathSegments.length - 1;
 
-            // ── Hide the separator if it's the very first item next to the root '/' ──
             const showSeparator = showEllipsis || i > 0;
 
             return (
@@ -165,16 +159,6 @@ export function BrowserToolbar({
         </button>
         <div className="w-px h-4 bg-border" />
 
-        <button
-          onClick={onShareClipboard}
-          disabled={disabled}
-          title="Share Clipboard"
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold text-purple bg-purple/8 border border-purple/25 hover:bg-purple/15 hover:border-purple/40 disabled:opacity-40 transition-all"
-        >
-          <ClipboardPaste size={12} /> Share
-        </button>
-
-        {/* ── Search Trigger Button ── */}
         {!isSearchActive && (
           <button
             onClick={() => setIsSearchActive(true)}

@@ -1,4 +1,5 @@
 import {
+  ClipboardPaste,
   CloudUpload,
   FolderPlus,
   FolderUp,
@@ -232,7 +233,6 @@ export function FileBrowser({
         loading={loading}
         disabled={disabled}
         onNavigate={onNavigate}
-        onShareClipboard={onShareClipboard}
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
         isSearchActive={isSearchActive}
@@ -297,13 +297,14 @@ export function FileBrowser({
         ))}
       </div>
 
-      {/* ── Unified Floating Action Button ── */}
+      {/* ── Unified Floating Action Button Container ── */}
       <div
         className="absolute bottom-6 right-6 z-40 flex flex-col items-end gap-3"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Upload/Folder Menu */}
         {showFabMenu && (
-          <div className="rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.5)] py-1.5 w-40 flex flex-col items-end gap-y-2 animate-in slide-in-from-bottom-2 fade-in duration-150">
+          <div className="rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.5)] py-1.5 w-48 flex flex-col items-end gap-y-2 animate-in slide-in-from-bottom-2 fade-in duration-150">
             <button
               onClick={() => {
                 setShowFabMenu(false);
@@ -334,11 +335,22 @@ export function FileBrowser({
           </div>
         )}
 
+        {/* ── Secondary FAB: Share Clipboard ── */}
+        <button
+          onClick={onShareClipboard}
+          disabled={disabled}
+          title="Share Clipboard"
+          className="size-12 flex items-center justify-center rounded-xl bg-panel text-purple border border-purple/25 hover:bg-purple/15 hover:backdrop-blur-md hover:border-purple/40 hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:scale-100 shrink-0"
+        >
+          <ClipboardPaste size={22} />
+        </button>
+
+        {/* ── Main FAB ── */}
         <button
           onClick={() => setShowFabMenu(!showFabMenu)}
           disabled={disabled}
           className={`
-            w-12 h-12 flex items-center justify-center shadow-lg transition-all duration-200
+            size-12 flex items-center justify-center shadow-lg transition-all duration-200 shrink-0
             ${showFabMenu ? "bg-panel text-accent border border-accent/30 rounded-full" : "bg-accent rounded-xl text-bg-base hover:bg-accent/90 hover:scale-105 border border-transparent shadow-xl shadow-accent/20"}
             disabled:opacity-50 disabled:scale-100
           `}
