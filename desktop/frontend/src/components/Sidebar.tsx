@@ -9,7 +9,7 @@ import {
   Settings,
   Smartphone,
   WifiOff,
-  X
+  X,
 } from "lucide-react";
 import type { Device, DiscoveredDevice } from "../types";
 import IPInput from "./IPInput";
@@ -40,7 +40,7 @@ const DeviceIcon = ({ os, size = 16 }: { os: string; size?: number }) => {
   if (lower === "windows" || lower === "darwin" || lower === "linux")
     return <Monitor size={size} />;
   return <Server size={size} />;
-}
+};
 
 const RefreshButton = ({ onRefresh }: { onRefresh?: () => void }) => {
   const [isSpinning, setIsSpinning] = useState(false);
@@ -59,16 +59,13 @@ const RefreshButton = ({ onRefresh }: { onRefresh?: () => void }) => {
     <button
       onClick={handleRefreshClick}
       title="Refresh Network"
-      className={`text-text transition-colors duration-200 ${isSpinning ? 'opacity-50 cursor-not-allowed' : ''}`}
+      className={`text-text transition-colors duration-200 ${isSpinning ? "opacity-50 cursor-not-allowed" : ""}`}
       disabled={isSpinning}
     >
-      <RefreshCw
-        size={12}
-        className={`${isSpinning ? 'animate-spin' : ''}`}
-      />
+      <RefreshCw size={12} className={`${isSpinning ? "animate-spin" : ""}`} />
     </button>
   );
-}
+};
 
 // ── Sidebar Component ───────────────────────────────────────────────────────
 export function Sidebar({
@@ -94,13 +91,16 @@ export function Sidebar({
 
   // Filter out currently connected devices from the recent list
   const unconnectedRecent = recentDevices.filter(
-    (rd) => !devices.some((d) => d.ip === rd.ip || d.deviceName === rd.deviceName),
+    (rd) =>
+      !devices.some((d) => d.ip === rd.ip || d.deviceName === rd.deviceName),
   );
 
   const availableToConnect = (discoveredDevices || []).filter(
     (d) =>
       !localIPs.includes(d.ip) &&
-      !devices.some((con) => con.ip === d.ip || con.deviceName === d.deviceName)
+      !devices.some(
+        (con) => con.ip === d.ip || con.deviceName === d.deviceName,
+      ),
   );
 
   return (
@@ -132,7 +132,9 @@ export function Sidebar({
               <p className="text-[11px] font-bold text-text">No Network</p>
               <RefreshButton onRefresh={onRefresh} />
             </div>
-            <p className="text-[9px] text-light mt-0.5">Please connect to a network</p>
+            <p className="text-[9px] text-light mt-0.5">
+              Please connect to a network
+            </p>
           </div>
         ) : (
           <div className="mt-2 flex items-start justify-between">
@@ -160,7 +162,9 @@ export function Sidebar({
       </div>
 
       {/* ── Connected Devices ── */}
-      <div className="flex-1 overflow-y-auto px-3 py-3 scrollbar-thin rounded-xl bg-surface">
+      <div
+        className={`flex-1 ${devices.length === 0 ? "min-h-35 max-h-35" : "min-h-25 overflow-y-auto"} p-3 scrollbar-thin rounded-xl bg-surface`}
+      >
         <p className="text-[9px] font-bold tracking-[0.15em] uppercase text-dull px-2 mb-2">
           Connected
         </p>
@@ -181,9 +185,10 @@ export function Sidebar({
                   className={`
                     group w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-lg
                     border transition-all duration-150 relative overflow-hidden
-                    ${isActive
-                      ? "bg-accent/8 border-accent/30"
-                      : "bg-transparent border-transparent hover:bg-panel hover:border-border"
+                    ${
+                      isActive
+                        ? "bg-accent/8 border-accent/30"
+                        : "bg-transparent border-transparent hover:bg-panel hover:border-border"
                     }
                   `}
                 >
@@ -230,21 +235,25 @@ export function Sidebar({
       </div>
 
       {/* ── Available Devices ── */}
-      <div className="px-3 pb-3 rounded-xl bg-surface pt-3 flex flex-col gap-2">
-        <div className="flex items-center gap-1 mb-1">
+      <div className="py-3 rounded-xl bg-surface flex flex-col gap-2">
+        <div className="pl-3 flex items-center gap-1 mb-1">
           <p className="text-[9px] font-bold tracking-[0.15em] uppercase text-dull px-2">
             Available Devices
           </p>
-          {availableToConnect.length > 0 ? <Loader2 size={13} className="animate-spin text-dull" /> : null}
+          {availableToConnect.length > 0 ? (
+            <Loader2 size={13} className="animate-spin text-dull" />
+          ) : null}
         </div>
 
         {availableToConnect.length === 0 ? (
-          <div className="flex items-center gap-2 px-3 py-2 text-dull">
+          <div className="flex items-center gap-2 px-5 py-2 text-dull">
             <Loader2 size={13} className="animate-spin text-accent" />
-            <span className="text-[11px] font-medium">Looking for devices...</span>
+            <span className="text-[11px] font-medium">
+              Looking for devices...
+            </span>
           </div>
         ) : (
-          <div className="flex flex-col gap-1.5">
+          <div className="flex px-3 flex-col gap-1.5 max-h-40 overflow-y-auto">
             {availableToConnect.map((device) => (
               <div
                 key={device.ip}
@@ -279,13 +288,13 @@ export function Sidebar({
       </div>
 
       {/* ── Manual Device Address ── */}
-      <div className="px-3 pb-3 rounded-xl bg-surface pt-3 flex flex-col gap-3">
-        <p className="text-[9px] font-bold tracking-[0.15em] uppercase text-dull px-2">
+      <div className="py-3 flex-1 rounded-xl bg-surface flex flex-col gap-3">
+        <p className="pl-3 text-[9px] font-bold tracking-[0.15em] uppercase text-dull px-2">
           Manual Connect
         </p>
 
         {/* IP Input */}
-        <div className="flex flex-col gap-2">
+        <div className="px-3 flex flex-col gap-2">
           <IPInput
             value={newDeviceIP}
             onChange={onNewDeviceIPChange}
@@ -314,49 +323,51 @@ export function Sidebar({
         {/* Recent devices */}
         {unconnectedRecent.length > 0 && (
           <div className="flex flex-col gap-1 mt-1">
-            <div className="flex items-center gap-1.5 px-2 mb-0.5">
+            <div className="px-4 flex items-center gap-1.5 mb-0.5">
               <History size={9} className="text-dull" />
               <span className="text-[9px] font-bold tracking-[0.12em] uppercase text-dull">
                 Recent
               </span>
             </div>
 
-            {unconnectedRecent.map((device) => (
-              <div
-                key={device.ip}
-                onClick={() => localIPs.length > 0 && onConnect(device.ip)}
-                title={localIPs.length > 0 ? "Connect" : "Can't connect"}
-                className={`
+            <div className="px-3 flex flex-col gap-1">
+              {unconnectedRecent.map((device) => (
+                <div
+                  key={device.ip}
+                  onClick={() => localIPs.length > 0 && onConnect(device.ip)}
+                  title={localIPs.length > 0 ? "Connect" : "Can't connect"}
+                  className={`
                   group flex items-center gap-2.5 px-3 py-2 rounded-lg
                   transition-all text-left w-full border hover:border-border border-transparent
                   ${localIPs.length > 0 ? "cursor-pointer bg-transparent hover:bg-panel" : "opacity-50 cursor-not-allowed"}
                 `}
-              >
-                <span className="text-dull group-hover:text-light transition-colors duration-200">
-                  <DeviceIcon os={device.os} size={16} />
-                </span>
-
-                <div className="flex-1 min-w-0">
-                  <p className="text-[11px] font-medium text-light truncate mb-0.5">
-                    {device.deviceName}
-                  </p>
-                  <p className="text-[10px] font-mono text-dull truncate">
-                    {device.ip.split(":")[0]}
-                  </p>
-                </div>
-
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onRemoveRecent(device.ip);
-                  }}
-                  title="Remove from history"
-                  className="opacity-0 group-hover:opacity-100 p-1 rounded text-dull hover:text-red transition-all cursor-pointer"
                 >
-                  <X size={10} />
-                </button>
-              </div>
-            ))}
+                  <span className="text-dull group-hover:text-light transition-colors duration-200">
+                    <DeviceIcon os={device.os} size={16} />
+                  </span>
+
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[11px] font-medium text-light truncate mb-0.5">
+                      {device.deviceName}
+                    </p>
+                    <p className="text-[10px] font-mono text-dull truncate">
+                      {device.ip.split(":")[0]}
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onRemoveRecent(device.ip);
+                    }}
+                    title="Remove from history"
+                    className="opacity-0 group-hover:opacity-100 p-1 rounded text-dull hover:text-red transition-all cursor-pointer"
+                  >
+                    <X size={10} />
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>
