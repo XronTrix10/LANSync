@@ -119,8 +119,9 @@ jobs:
           Section: net
           Priority: optional
           Architecture: amd64
-          Maintainer: LANSync Developer
+          Maintainer: Xron Trix
           Description: A blazing-fast, cross-platform local network synchronization tool.
+          Depends: libgtk-3-0, libwebkit2gtk-4.1-0, wl-clipboard | xclip | xsel
           EOF
 
           cat <<EOF > lansync_deb/usr/share/applications/lansync.desktop
