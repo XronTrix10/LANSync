@@ -205,7 +205,7 @@ export default function App() {
           recentDevices={recentDevices}
           discoveredDevices={discoveredDevices}
           newDeviceIP={newDeviceIP}
-          loading={loading}
+          loading={connectionLoading}
           onSetActiveDevice={setActiveDeviceIP}
           onDisconnect={(ip) => Disconnect(ip)}
           onNewDeviceIPChange={setNewDeviceIP}
