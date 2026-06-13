@@ -2,7 +2,7 @@ import {
   GetDeviceName,
   GetSharedDir,
   SelectDirectory,
-} from "../../wailsjs/go/main/App";
+} from "../../../wailsjs/go/main/App";
 
 interface Props {
   isOpen: boolean;
@@ -45,9 +45,7 @@ export function SettingsModal({
   return (
     <div className="absolute inset-0 z-100 bg-bg-base/80 backdrop-blur-sm flex items-center justify-center p-4">
       <div className="bg-surface border border-border rounded-2xl w-full max-w-sm shadow-2xl p-5 animate-in fade-in zoom-in-95 duration-150">
-        <h3 className="text-sm font-semibold text-text mb-1">
-          Settings
-        </h3>
+        <h3 className="text-sm font-semibold text-text mb-1">Settings</h3>
         <p className="text-[11px] text-dull mb-5">
           Customize how this PC appears and operates on your network.
         </p>

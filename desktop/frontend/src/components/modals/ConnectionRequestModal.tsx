@@ -1,5 +1,5 @@
 import { ShieldAlert } from "lucide-react";
-import type { ConnectionRequest } from "../types";
+import type { ConnectionRequest } from "../../types";
 
 interface Props {
   request: ConnectionRequest | null;

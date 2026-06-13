@@ -12,7 +12,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FileInfo } from "../types";
 import { BrowserToolbar } from "./BrowserToolbar";
-import { CreateFolderModal } from "./CreateFolderModal";
+import { CreateFolderModal } from "./modals/CreateFolderModal";
 import { FileRow } from "./FileRow";
 
 interface Props {

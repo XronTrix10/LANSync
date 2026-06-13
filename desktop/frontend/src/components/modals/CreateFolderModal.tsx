@@ -1,6 +1,6 @@
 import { Loader2 } from "lucide-react";
 import { useState } from "react";
-import type { FileInfo } from "../types";
+import type { FileInfo } from "../../types";
 
 interface Props {
   isOpen: boolean;
