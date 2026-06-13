@@ -4,11 +4,14 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+
+	"github.com/google/uuid"
 )
 
 type Config struct {
 	DeviceName string `json:"deviceName"`
 	SharedDir  string `json:"sharedDir"`
+	DeviceID   string `json:"deviceId"`
 }
 
 func GetConfigPath() string {
@@ -28,10 +31,25 @@ func Load() Config {
 		json.Unmarshal(data, &cfg)
 	}
 
+	needsSave := false
+
 	// Default to computer's hostname if no custom name is set
 	if cfg.DeviceName == "" {
 		cfg.DeviceName, _ = os.Hostname()
+		needsSave = true
 	}
+
+	// Generate a persistent UUID if it does not exist
+	if cfg.DeviceID == "" {
+		cfg.DeviceID = uuid.New().String()
+		needsSave = true
+	}
+
+	// Immediately persist any newly generated defaults to disk
+	if needsSave {
+		Save(cfg)
+	}
+
 	return cfg
 }
 

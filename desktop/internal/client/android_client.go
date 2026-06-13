@@ -92,10 +92,10 @@ func (c *AndroidClient) IdentifyDevice(inputIP string) (models.DeviceIdentity, e
 	return models.DeviceIdentity{}, fmt.Errorf("Could not reach device")
 }
 
-func (c *AndroidClient) RequestConnection(targetIP string, targetPort string, myDeviceName string) (string, error) {
+func (c *AndroidClient) RequestConnection(targetIP string, targetPort string, myDeviceID string, myDeviceName string) (models.ConnectionResponse, error) {
+	var result models.ConnectionResponse
 	tokenForB := c.sessionManager.GenerateToken()
 
-	// Safely assign IP to avoid Index Out Of Bounds
 	ips := sys.GetLocalIPs()
 	myIP := "127.0.0.1"
 	if len(ips) > 0 {
@@ -104,9 +104,10 @@ func (c *AndroidClient) RequestConnection(targetIP string, targetPort string, my
 
 	reqPayload := models.ConnectionRequest{
 		DeviceIdentity: models.DeviceIdentity{
+			DeviceID:   myDeviceID,
+			DeviceName: myDeviceName,
 			IP:         myIP,
 			Port:       "34931",
-			DeviceName: myDeviceName,
 			OS:         stdruntime.GOOS,
 			Type:       "desktop",
 		},
@@ -116,26 +117,24 @@ func (c *AndroidClient) RequestConnection(targetIP string, targetPort string, my
 	jsonData, _ := json.Marshal(reqPayload)
 	resp, err := http.Post(fmt.Sprintf("http://%s:%s/api/connect", targetIP, targetPort), "application/json", bytes.NewBuffer(jsonData))
 	if err != nil || resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("device did not respond")
+		return result, fmt.Errorf("device did not respond")
 	}
 	defer resp.Body.Close()
 
-	var result models.ConnectionResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", err
+		return result, err
 	}
 
 	if result.Accepted {
 		c.sessionManager.RegisterSession(targetIP, tokenForB, result.TokenForA)
 		go c.startHeartbeatLoop(targetIP, targetPort)
 
-		finalName := result.DeviceName
-		if finalName == "" {
-			finalName = "Unknown Device"
+		if result.DeviceName == "" {
+			result.DeviceName = "Unknown Device"
 		}
-		return finalName, nil
+		return result, nil
 	}
-	return "", fmt.Errorf("connection rejected")
+	return result, fmt.Errorf("connection rejected")
 }
 
 func (c *AndroidClient) startHeartbeatLoop(targetIP string, targetPort string) {

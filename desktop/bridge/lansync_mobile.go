@@ -34,6 +34,7 @@ var (
 	clipboardManager *clipboard.ClipboardManager
 
 	mobileDeviceName  = "Android Phone"
+	mobileDeviceID    = ""
 	currentExposedDir string
 	dirMutex          sync.RWMutex
 
@@ -121,8 +122,9 @@ func StartupWithCallback(cb BridgeCallback) {
 
 	go desktopServer.Start("34932")
 
-	// ── DISCOVERY START ──
+	// ── DISCOVERY START UPDATED WITH DEVICE ID ──
 	discovery.Start(
+		func() string { return mobileDeviceID },
 		func() string { return mobileDeviceName },
 		"android",
 		func() []string {
@@ -142,6 +144,8 @@ func StartupWithCallback(cb BridgeCallback) {
 	)
 }
 
+// ── Added Setter for Kotlin SharedPreferences UUID ──
+func SetDeviceID(id string)     { mobileDeviceID = id }
 func SetDeviceName(name string) { mobileDeviceName = name }
 
 func UpdateExposedDir(dir string) {
@@ -176,8 +180,14 @@ func ResolveConnection(ip string, accept bool) {
 	prMutex.Unlock()
 }
 
+// ── Returns JSON String of ConnectionResponse for Kotlin ──
 func RequestConnection(ip string, port string) (string, error) {
-	return androidClient.RequestConnection(ip, port, mobileDeviceName)
+	resp, err := androidClient.RequestConnection(ip, port, mobileDeviceID, mobileDeviceName)
+	if err != nil {
+		return "", err
+	}
+	jsonBytes, _ := json.Marshal(resp)
+	return string(jsonBytes), nil
 }
 
 func DisconnectDevice(ip string) {
@@ -252,7 +262,11 @@ func StartMobileServer() {
 		mux.HandleFunc("/api/identify", func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(models.DeviceIdentity{
-				DeviceName: mobileDeviceName, OS: "android", Type: "mobile", Port: "34931",
+				DeviceID:   mobileDeviceID,
+				DeviceName: mobileDeviceName,
+				OS:         "android",
+				Type:       "mobile",
+				Port:       "34931",
 			})
 		})
 
@@ -304,7 +318,10 @@ func StartMobileServer() {
 					}(clientIP, req.Port, req.TokenForB)
 
 					json.NewEncoder(w).Encode(models.ConnectionResponse{
-						Accepted: true, TokenForA: tokenForA, DeviceName: mobileDeviceName,
+						Accepted:   true,
+						TokenForA:  tokenForA,
+						DeviceName: mobileDeviceName,
+						DeviceID:   mobileDeviceID,
 					})
 				} else {
 					json.NewEncoder(w).Encode(models.ConnectionResponse{Accepted: false})
@@ -319,6 +336,8 @@ func StartMobileServer() {
 		})
 
 		mux.HandleFunc("/api/ping", authMiddleware(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) }))
+
+		// ... KEEP REST OF THE MOBILE SERVER HANDLERS EXACTLY THE SAME ...
 
 		mux.HandleFunc("/api/disconnect", authMiddleware(func(w http.ResponseWriter, r *http.Request) {
 			clientIP, _, err := net.SplitHostPort(r.RemoteAddr)

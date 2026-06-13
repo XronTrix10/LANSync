@@ -211,6 +211,7 @@ func (s *DesktopServer) handleConnect(w http.ResponseWriter, r *http.Request) {
 				Accepted:   true,
 				TokenForA:  tokenForA,
 				DeviceName: cfg.DeviceName,
+				DeviceID:   cfg.DeviceID,
 			})
 		} else {
 			json.NewEncoder(w).Encode(models.ConnectionResponse{Accepted: false})
@@ -266,7 +267,10 @@ func (s *DesktopServer) handleIdentify(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Content-Type", "application/json")
 	hostname, _ := os.Hostname()
+	cfg := config.Load()
+
 	json.NewEncoder(w).Encode(models.DeviceIdentity{
+		DeviceID:   cfg.DeviceID,
 		DeviceName: hostname,
 		OS:         stdruntime.GOOS,
 		Type:       "desktop",

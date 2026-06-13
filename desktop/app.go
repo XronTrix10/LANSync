@@ -16,6 +16,7 @@ import (
 	"lansync/internal/clipboard"
 	"lansync/internal/config"
 	"lansync/internal/discovery"
+	"lansync/internal/models"
 	"lansync/internal/server"
 	"lansync/internal/sys"
 )
@@ -45,6 +46,7 @@ func (a *App) startup(ctx context.Context) {
 	go a.desktopServer.Start("34931")
 
 	discovery.Start(
+		func() string { return config.Load().DeviceID },
 		func() string { return config.Load().DeviceName },
 		stdruntime.GOOS,
 		func() []string { return sys.GetLocalIPs() },
@@ -74,12 +76,14 @@ func (a *App) CancelTransfers(ip string) {
 	}
 }
 
-func (a *App) RequestConnection(ip string, port string) (string, error) {
-	return a.androidClient.RequestConnection(ip, port, config.Load().DeviceName)
+func (a *App) RequestConnection(ip string, port string) (models.ConnectionResponse, error) {
+	cfg := config.Load()
+	return a.androidClient.RequestConnection(ip, port, cfg.DeviceID, cfg.DeviceName)
 }
 
 func (a *App) AcceptConnection(ip string) { a.desktopServer.ResolveConnection(ip, true) }
 func (a *App) RejectConnection(ip string) { a.desktopServer.ResolveConnection(ip, false) }
+func (a *App) GetDeviceID() string        { return config.Load().DeviceID }
 
 func (a *App) Disconnect(ip string) {
 	// Execute the full kill sequence on disconnect

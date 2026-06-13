@@ -10,12 +10,14 @@ import (
 )
 
 type DiscoveryPacket struct {
+	DeviceID   string `json:"deviceId"`
 	DeviceName string `json:"deviceName"`
 	OS         string `json:"os"`
 	Port       string `json:"port"`
 }
 
 type DiscoveredDevice struct {
+	DeviceID   string    `json:"deviceId"`
 	IP         string    `json:"ip"`
 	DeviceName string    `json:"deviceName"`
 	OS         string    `json:"os"`
@@ -30,11 +32,12 @@ var (
 
 const discoveryPort = 34933
 
-func Start(getDeviceName func() string, myOS string, getLocalIPs func() []string, onChangeCallback func(devices []DiscoveredDevice)) {
+// Start now requires getDeviceID
+func Start(getDeviceID func() string, getDeviceName func() string, myOS string, getLocalIPs func() []string, onChangeCallback func(devices []DiscoveredDevice)) {
 	onChange = onChangeCallback
 
 	go listenForBroadcasts(getLocalIPs)
-	go broadcastPresence(getDeviceName, myOS, getLocalIPs)
+	go broadcastPresence(getDeviceID, getDeviceName, myOS, getLocalIPs)
 	go pruneStaleDevices()
 }
 
@@ -97,11 +100,13 @@ func getBroadcastAddresses(getLocalIPs func() []string) []string {
 	return addresses
 }
 
-func broadcastPresence(getDeviceName func() string, myOS string, getLocalIPs func() []string) {
+func broadcastPresence(getDeviceID func() string, getDeviceName func() string, myOS string, getLocalIPs func() []string) {
 	for {
 		name := getDeviceName()
-		if name != "" {
+		id := getDeviceID()
+		if name != "" && id != "" {
 			packet := DiscoveryPacket{
+				DeviceID:   id,
 				DeviceName: name,
 				OS:         myOS,
 				Port:       "34931",
@@ -151,7 +156,7 @@ func listenForBroadcasts(getLocalIPs func() []string) {
 			}
 
 			var packet DiscoveryPacket
-			if err := json.Unmarshal(buffer[:n], &packet); err == nil && packet.DeviceName != "" {
+			if err := json.Unmarshal(buffer[:n], &packet); err == nil && packet.DeviceID != "" {
 				ip := peer.IP.String()
 
 				if getLocalIPs != nil {
@@ -162,9 +167,10 @@ func listenForBroadcasts(getLocalIPs func() []string) {
 				}
 
 				mu.Lock()
-				d, exists := devices[ip]
+				d, exists := devices[packet.DeviceID]
 				if !exists {
-					devices[ip] = &DiscoveredDevice{
+					devices[packet.DeviceID] = &DiscoveredDevice{
+						DeviceID:   packet.DeviceID,
 						IP:         ip,
 						DeviceName: packet.DeviceName,
 						OS:         packet.OS,
@@ -172,6 +178,7 @@ func listenForBroadcasts(getLocalIPs func() []string) {
 					}
 				} else {
 					d.LastSeen = time.Now()
+					d.IP = ip // Dynamically update IP if the device switched networks
 					d.DeviceName = packet.DeviceName
 					d.OS = packet.OS
 				}
@@ -191,9 +198,9 @@ func pruneStaleDevices() {
 		now := time.Now()
 		triggerUpdate := false
 
-		for ip, device := range devices {
+		for id, device := range devices {
 			if now.Sub(device.LastSeen) > 15*time.Second {
-				delete(devices, ip)
+				delete(devices, id)
 				triggerUpdate = true
 			}
 		}
