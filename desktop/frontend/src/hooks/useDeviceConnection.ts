@@ -83,6 +83,8 @@ export function useDeviceConnection(showToast: ShowToast) {
       deviceName: pendingRequest.deviceName,
       os: pendingRequest.os,
       type: pendingRequest.type,
+      deviceId: pendingRequest.deviceId,
+      autoConnect: pendingRequest.autoConnect,
     };
     setDevices((prev) => [...prev, newDevice]);
     setActiveDeviceIP(newDevice.ip);

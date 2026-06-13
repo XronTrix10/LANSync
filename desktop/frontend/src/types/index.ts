@@ -26,6 +26,7 @@ export interface Toast {
 }
 
 export interface DiscoveredDevice {
+  deviceId: string;
   ip: string;
   deviceName: string;
   os: string;
@@ -34,11 +35,20 @@ export interface DiscoveredDevice {
 export interface Device extends DiscoveredDevice {
   port: string;
   type: string;
+  autoConnect?: boolean;
 }
 
 // Handshake Request Payload
 export interface ConnectionRequest extends Device {
   tokenForB: string;
+}
+
+// Handshake Response Payload
+export interface ConnectionResponse {
+  accepted: boolean;
+  tokenForA: string;
+  deviceName: string;
+  deviceId: string;
 }
 
 // ─── Utility Formatters ───────────────────────────────────────────────────────
