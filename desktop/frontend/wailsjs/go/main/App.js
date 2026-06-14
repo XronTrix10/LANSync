@@ -10,6 +10,10 @@ export function CancelTransfers(arg1) {
   return window['go']['main']['App']['CancelTransfers'](arg1);
 }
 
+export function DisableAutoConnect(arg1) {
+  return window['go']['main']['App']['DisableAutoConnect'](arg1);
+}
+
 export function Disconnect(arg1) {
   return window['go']['main']['App']['Disconnect'](arg1);
 }
@@ -20,6 +24,10 @@ export function DownloadFile(arg1, arg2, arg3) {
 
 export function DownloadFolder(arg1, arg2, arg3) {
   return window['go']['main']['App']['DownloadFolder'](arg1, arg2, arg3);
+}
+
+export function GetDeviceID() {
+  return window['go']['main']['App']['GetDeviceID']();
 }
 
 export function GetDeviceName() {
@@ -70,8 +78,16 @@ export function RejectConnection(arg1) {
   return window['go']['main']['App']['RejectConnection'](arg1);
 }
 
+export function RequestAutoConnect(arg1) {
+  return window['go']['main']['App']['RequestAutoConnect'](arg1);
+}
+
 export function RequestConnection(arg1, arg2) {
   return window['go']['main']['App']['RequestConnection'](arg1, arg2);
+}
+
+export function ResolveAutoConnect(arg1, arg2) {
+  return window['go']['main']['App']['ResolveAutoConnect'](arg1, arg2);
 }
 
 export function SaveDeviceName(arg1) {

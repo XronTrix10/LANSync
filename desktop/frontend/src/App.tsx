@@ -1,28 +1,35 @@
 import { useEffect, useRef, useState } from "react";
 import {
   CancelTransfers,
+  DisableAutoConnect,
   Disconnect,
   GetDeviceName,
   GetHomeDir,
   GetLocalIPs,
   GetSharedDir,
+  RequestAutoConnect,
+  ResolveAutoConnect,
   SaveDeviceName,
   SaveSharedDir,
 } from "../wailsjs/go/main/App";
-import { EventsOff, EventsOn, Environment } from "../wailsjs/runtime/runtime";
+import { Environment, EventsOff, EventsOn } from "../wailsjs/runtime/runtime";
 
-import { ConnectionRequestModal } from "./components/ConnectionRequestModal";
 import { FileBrowser } from "./components/FileBrowser";
-import { SettingsModal } from "./components/SettingsModal";
 import { Sidebar } from "./components/Sidebar";
 import { TitleBar } from "./components/TitleBar";
 import { ToastContainer } from "./components/ToastContainer";
 import { TransferDrawer } from "./components/TransferDrawer";
+
+import { useAutoConnect } from "./hooks/useAutoConnect";
 import { useDeviceConnection } from "./hooks/useDeviceConnection";
 import { useFileTransfer } from "./hooks/useFileTransfer";
 import { useToasts } from "./hooks/useToasts";
+
+import { AutoConnectPromptModal } from "./components/modals/AutoConnectPromptModal";
+import { ConnectionRequestModal } from "./components/modals/ConnectionRequestModal";
+import { SettingsModal } from "./components/modals/SettingsModal";
 import type { DiscoveredDevice, TransferProgress } from "./types";
-import { loadRecentDevices } from "./utils/deviceUtils";
+import { loadRecentDevices, toggleAutoConnect } from "./utils/deviceUtils";
 
 export default function App() {
   const [os, setOs] = useState("");
@@ -35,13 +42,13 @@ export default function App() {
   const [sharedDir, setSharedDir] = useState("");
   const [homeDir, setHomeDir] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [incomingAutoConnectReq, setIncomingAutoConnectReq] =
+    useState<any>(null);
 
-  // ── Stable refs for use inside async callbacks / hooks ──────────────────
   const activeDeviceIPRef = useRef<string | null>(null);
   const currentPathRef = useRef<string>("/");
   const osRef = useRef<string>("");
 
-  // ── Hooks ────────────────────────────────────────────────────────────────
   const { toasts, showToast } = useToasts();
 
   const {
@@ -89,7 +96,38 @@ export default function App() {
 
   const loading = connectionLoading || fileLoading;
 
-  // Keep refs in sync with state
+  useAutoConnect(discoveredDevices, (device) => {
+    setActiveDeviceIP(device.ip);
+  });
+
+  const handleToggleAutoConnect = async (
+    ip: string,
+    deviceId: string,
+    enable: boolean,
+  ) => {
+    if (enable) {
+      showToast("Asking for Auto-Connect...", "success");
+      try {
+        await RequestAutoConnect(ip);
+        const updated = toggleAutoConnect(recentDevices, deviceId, true);
+        setRecentDevices(updated);
+        showToast("Auto-Connect Enabled!", "success");
+      } catch (err) {
+        showToast("Auto-Connect request was rejected or timed out.", "error");
+      }
+    } else {
+      showToast("Disabling Auto-Connect...", "success");
+      try {
+        await DisableAutoConnect(ip);
+        const updated = toggleAutoConnect(recentDevices, deviceId, false);
+        setRecentDevices(updated);
+        showToast("Auto-Connect Disabled.", "success");
+      } catch (err) {
+        showToast("Failed to communicate with remote device.", "error");
+      }
+    }
+  };
+
   useEffect(() => {
     activeDeviceIPRef.current = activeDeviceIP;
   }, [activeDeviceIP]);
@@ -102,7 +140,6 @@ export default function App() {
     osRef.current = os;
   }, [os]);
 
-  // Navigate when active device changes
   useEffect(() => {
     if (activeDeviceIP) {
       navigateTo("/", activeDeviceIP);
@@ -112,7 +149,6 @@ export default function App() {
     }
   }, [activeDeviceIP, navigateTo, setFiles, setCurrentPath]);
 
-  // ── Init ─────────────────────────────────────────────────────────────────
   useEffect(() => {
     setRecentDevices(loadRecentDevices());
 
@@ -143,6 +179,16 @@ export default function App() {
       setDiscoveredDevices(devs || []);
     });
     EventsOn("connection_requested", onConnectionRequested);
+    EventsOn("autoconnect_requested", (req) => {
+      setIncomingAutoConnectReq(req);
+    });
+
+    // ── INCOMING DISABLE EVENT ──
+    EventsOn("autoconnect_disabled", (req) => {
+      setRecentDevices((prev) => toggleAutoConnect(prev, req.deviceId, false));
+      showToast(`Auto-Connect was disabled by ${req.deviceName}`, "success");
+    });
+
     EventsOn("connection_lost", onConnectionLost);
     EventsOn(
       "wails:file-drop",
@@ -165,6 +211,8 @@ export default function App() {
       EventsOff("connection_requested");
       EventsOff("connection_lost");
       EventsOff("wails:file-drop");
+      EventsOff("autoconnect_requested");
+      EventsOff("autoconnect_disabled");
     };
   }, [
     onConnectionRequested,
@@ -184,7 +232,25 @@ export default function App() {
     }
   };
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  const handleResolveAutoConnect = (accept: boolean) => {
+    if (!incomingAutoConnectReq) return;
+    ResolveAutoConnect(incomingAutoConnectReq.ip, accept);
+
+    if (accept) {
+      const updated = toggleAutoConnect(
+        recentDevices,
+        incomingAutoConnectReq.deviceId,
+        true,
+      );
+      setRecentDevices(updated);
+      showToast(
+        `Auto-Connect enabled for ${incomingAutoConnectReq.deviceName}`,
+        "success",
+      );
+    }
+    setIncomingAutoConnectReq(null);
+  };
+
   return (
     <div className="flex flex-col h-screen bg-bg-base text-text select-none overflow-hidden">
       <ToastContainer toasts={toasts} />
@@ -194,6 +260,12 @@ export default function App() {
         request={pendingRequest}
         onAccept={handleAcceptConnection}
         onReject={handleRejectConnection}
+      />
+
+      <AutoConnectPromptModal
+        device={incomingAutoConnectReq}
+        onEnable={() => handleResolveAutoConnect(true)}
+        onSkip={() => handleResolveAutoConnect(false)}
       />
 
       <div className="flex flex-1 overflow-hidden min-h-0">
@@ -208,6 +280,7 @@ export default function App() {
           loading={connectionLoading}
           onSetActiveDevice={setActiveDeviceIP}
           onDisconnect={(ip) => Disconnect(ip)}
+          onToggleAutoConnect={handleToggleAutoConnect}
           onNewDeviceIPChange={setNewDeviceIP}
           onConnect={connectToDevice}
           onRemoveRecent={removeRecentDevice}
