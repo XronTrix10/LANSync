@@ -109,6 +109,69 @@ fun MainScreen(
         }
     }
 
+    val autoReq = viewModel.incomingAutoConnectRequest.value
+    if (autoReq != null) {
+        Dialog(
+            onDismissRequest = { },
+            properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnBackPress = false, dismissOnClickOutside = false)
+        ) {
+            Box(
+                modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.5f)).padding(20.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(24.dp), color = Panel, border = BorderStroke(1.dp, Accent.copy(alpha = 0.3f)),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Surface(
+                            shape = CircleShape, color = Color(0xFF10B981).copy(alpha = 0.1f), border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.2f)),
+                            modifier = Modifier.size(64.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                // Assuming you use R.drawable.connect or a similar lightning/check icon
+                                Icon(painter = painterResource(id = R.drawable.connect), contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(28.dp))
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text("Enable Auto-Connect?", color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = androidx.compose.ui.text.buildAnnotatedString {
+                                append("Would you like to automatically connect to ")
+                                withStyle(androidx.compose.ui.text.SpanStyle(fontWeight = FontWeight.Bold, color = TextPrimary)) { append(autoReq.second) }
+                                append(" whenever it is discovered?")
+                            },
+                            color = TextMuted, fontSize = 14.sp, textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(24.dp))
+
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Surface(
+                                onClick = { viewModel.resolveAutoConnect(false) },
+                                color = Surface, shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.weight(1f).height(45.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) { Text("Not Now", color = TextMuted, fontWeight = FontWeight.SemiBold, fontSize = 14.sp) }
+                            }
+
+                            Surface(
+                                onClick = { viewModel.resolveAutoConnect(true) },
+                                color = Color(0xFF10B981).copy(alpha = 0.1f), shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.weight(1f).height(45.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) { Text("Enable", color = Color(0xFF10B981), fontWeight = FontWeight.SemiBold, fontSize = 14.sp) }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     Scaffold(
         bottomBar = {
             val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -182,7 +245,10 @@ fun MainScreen(
                     onRemoveRecentDevice = { ipToRemove ->
                         viewModel.removeRecentDevice(ipToRemove)
                     },
-                    onRefreshNetwork = onRefreshNetwork
+                    onRefreshNetwork = onRefreshNetwork,
+                    onToggleAutoConnect = { ip, deviceId, enable ->
+                        viewModel.toggleAutoConnect(ip, deviceId, enable)
+                    }
                 )
             }
             composable("browse") {

@@ -61,6 +61,9 @@ class MainActivity : ComponentActivity() {
         }
 
         setupNetworkMonitoring()
+
+        val localId = prefsManager.getLocalDeviceId()
+        runCatching { Bridge.setDeviceID(localId) }
         Bridge.startupWithCallback(viewModel)
 
         val sharedPrefs = getSharedPreferences("lansync_prefs", MODE_PRIVATE)

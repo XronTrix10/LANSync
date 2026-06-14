@@ -19,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.*
@@ -53,7 +54,8 @@ fun HomeScreen(
     onConnect: (String) -> Unit,
     onDisconnect: () -> Unit,
     onRemoveRecentDevice: (String) -> Unit,
-    onRefreshNetwork: () -> Unit
+    onRefreshNetwork: () -> Unit,
+    onToggleAutoConnect: (String, String, Boolean) -> Unit
 ) {
     val focusRequesters = remember { List(4) { FocusRequester() } }
     var ipSegments by remember { mutableStateOf(listOf("", "", "", "")) }
@@ -318,12 +320,47 @@ fun HomeScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             DeviceIcon(activeDeviceOS, Accent, Modifier.size(20.dp))
-
                             Spacer(modifier = Modifier.width(14.dp))
 
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(activeDevice.name, color = TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-                                Text(activeDevice.ip.substringBefore(":"), color = TextMuted, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+                                Text(
+                                    text = activeDevice.name,
+                                    color = TextPrimary,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 15.sp
+                                )
+
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = activeDevice.ip.substringBefore(":"),
+                                        color = TextMuted,
+                                        fontSize = 12.sp,
+                                        fontFamily = FontFamily.Monospace
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+
+                                    // ── Interactive AUTO Toggle ──
+                                    Surface(
+                                        onClick = { onToggleAutoConnect(activeDevice.ip, activeDevice.deviceId, !activeDevice.autoConnect) },
+                                        color = Color.Transparent
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                text = "AUTO",
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (activeDevice.autoConnect) Accent else TextMuted.copy(alpha = 0.5f)
+                                            )
+                                            Spacer(modifier = Modifier.width(2.dp))
+                                            Icon(
+                                                painter = painterResource(id = if (activeDevice.autoConnect) R.drawable.toggle_on else R.drawable.toggle_off),
+                                                contentDescription = "Auto",
+                                                tint = if (activeDevice.autoConnect) Accent else TextMuted.copy(alpha = 0.5f),
+                                                modifier = Modifier.size(12.dp)
+                                            )
+                                        }
+                                    }
+                                }
                             }
                             // Disconnect button
                             Surface(
