@@ -6,7 +6,10 @@ import {
   RequestConnection,
 } from "../../wailsjs/go/main/App";
 import type { ConnectionRequest, Device } from "../types";
-import { pushToRecentDevices, removeFromRecentDevices } from "../utils/deviceUtils";
+import {
+  pushToRecentDevices,
+  removeFromRecentDevices,
+} from "../utils/deviceUtils";
 import { sendOSNotification } from "../utils/notificationUtils";
 
 type ShowToast = (
@@ -44,13 +47,14 @@ export function useDeviceConnection(showToast: ShowToast) {
           "success",
         );
 
-        const connectedDeviceName = await RequestConnection(
-          device.ip,
-          device.port,
-        );
+        // ── Parse the ConnectionResponse Object ──
+        const response = await RequestConnection(device.ip, device.port);
 
-        if (connectedDeviceName) {
-          device.deviceName = connectedDeviceName;
+        if (response && response.accepted) {
+          // Properly map the returned fields to the device object
+          device.deviceName = response.deviceName;
+          device.deviceId = response.deviceId;
+
           setDevices((prev) => {
             if (prev.some((d) => d.ip === device.ip)) return prev;
             return [...prev, device];
@@ -59,7 +63,7 @@ export function useDeviceConnection(showToast: ShowToast) {
           setNewDeviceIP("");
           addRecentDevice(device);
           showToast(
-            `Connection established with ${connectedDeviceName}!`,
+            `Connection established with ${response.deviceName}!`,
             "success",
           );
         } else {
@@ -99,17 +103,13 @@ export function useDeviceConnection(showToast: ShowToast) {
     setPendingRequest(null);
   }, [pendingRequest]);
 
-  // Wire up the incoming connection event from the outside (called by App)
-  const onConnectionRequested = useCallback(
-    (req: ConnectionRequest) => {
-      setPendingRequest(req);
-      sendOSNotification(
-        "Connection Request",
-        `${req.deviceName} wants to connect.`,
-      );
-    },
-    [],
-  );
+  const onConnectionRequested = useCallback((req: ConnectionRequest) => {
+    setPendingRequest(req);
+    sendOSNotification(
+      "Connection Request",
+      `${req.deviceName} wants to connect.`,
+    );
+  }, []);
 
   const onConnectionLost = useCallback(
     (ip: string) => {
