@@ -213,9 +213,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application), B
                         deviceId = obj.optString("deviceId", "")
                     ))
                 }
+
                 val myIPs = currentLocalIP.value ?: ""
+                val myId = prefsManager.getLocalDeviceId() // ── Fetch Local ID ──
+
                 val filteredDevs = devs.filter {
-                    it.ip != myIPs && it.ip != "127.0.0.1" && !it.ip.startsWith("192.0.0.")
+                    it.deviceId != myId && // ── Primary ID Check ──
+                            it.ip != myIPs &&
+                            it.ip != "127.0.0.1" &&
+                            !it.ip.startsWith("192.0.0.")
                 }
 
                 runOnUiThread { discoveredDevices.value = filteredDevs }

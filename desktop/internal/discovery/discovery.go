@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 )
@@ -36,7 +37,7 @@ const discoveryPort = 34933
 func Start(getDeviceID func() string, getDeviceName func() string, myOS string, getLocalIPs func() []string, onChangeCallback func(devices []DiscoveredDevice)) {
 	onChange = onChangeCallback
 
-	go listenForBroadcasts(getLocalIPs)
+	go listenForBroadcasts(getDeviceID, getLocalIPs)
 	go broadcastPresence(getDeviceID, getDeviceName, myOS, getLocalIPs)
 	go pruneStaleDevices()
 }
@@ -135,7 +136,7 @@ func broadcastPresence(getDeviceID func() string, getDeviceName func() string, m
 	}
 }
 
-func listenForBroadcasts(getLocalIPs func() []string) {
+func listenForBroadcasts(getDeviceID func() string, getLocalIPs func() []string) {
 	addr, err := net.ResolveUDPAddr("udp4", fmt.Sprintf("0.0.0.0:%d", discoveryPort))
 	if err != nil {
 		return
@@ -157,10 +158,23 @@ func listenForBroadcasts(getLocalIPs func() []string) {
 
 			var packet DiscoveryPacket
 			if err := json.Unmarshal(buffer[:n], &packet); err == nil && packet.DeviceID != "" {
+
+				// ── 1. BULLETPROOF ID FILTER ──
+				// If this packet came from ourselves, drop it instantly.
+				if getDeviceID != nil && packet.DeviceID == getDeviceID() {
+					continue
+				}
+
 				ip := peer.IP.String()
 
+				// Normalize IPv6-mapped IPv4 addresses to standard IPv4
+				if after, ok := strings.CutPrefix(ip, "::ffff:"); ok {
+					ip = after
+				}
+
+				// ── 2. FALLBACK IP FILTER ──
 				if getLocalIPs != nil {
-					isSelf := slices.Contains(getLocalIPs(), ip)
+					isSelf := slices.Contains(getLocalIPs(), ip) || ip == "127.0.0.1" || ip == "::1"
 					if isSelf {
 						continue
 					}
@@ -178,7 +192,7 @@ func listenForBroadcasts(getLocalIPs func() []string) {
 					}
 				} else {
 					d.LastSeen = time.Now()
-					d.IP = ip // Dynamically update IP if the device switched networks
+					d.IP = ip
 					d.DeviceName = packet.DeviceName
 					d.OS = packet.OS
 				}
