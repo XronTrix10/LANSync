@@ -137,6 +137,60 @@ func (c *AndroidClient) RequestConnection(targetIP string, targetPort string, my
 	return result, fmt.Errorf("connection rejected")
 }
 
+func (c *AndroidClient) RequestAutoConnect(targetIP, targetPort, myDeviceID, myDeviceName string) error {
+	token := c.sessionManager.GetOutboundToken(targetIP)
+	if token == "" {
+		return fmt.Errorf("not connected")
+	}
+
+	payload := models.AutoConnectPayload{
+		DeviceID:   myDeviceID,
+		DeviceName: myDeviceName,
+	}
+	jsonData, _ := json.Marshal(payload)
+
+	req, _ := http.NewRequest("POST", fmt.Sprintf("http://%s:%s/api/autoconnect", targetIP, targetPort), bytes.NewBuffer(jsonData))
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 35 * time.Second} // Wait for user to click
+	resp, err := client.Do(req)
+
+	if err != nil {
+		return fmt.Errorf("device did not respond")
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusOK {
+		return nil // They accepted!
+	}
+	return fmt.Errorf("request rejected")
+}
+
+func (c *AndroidClient) DisableAutoConnect(targetIP, targetPort, myDeviceID, myDeviceName string) error {
+	token := c.sessionManager.GetOutboundToken(targetIP)
+	if token == "" {
+		return fmt.Errorf("not connected")
+	}
+
+	payload := models.AutoConnectPayload{
+		DeviceID:   myDeviceID,
+		DeviceName: myDeviceName,
+	}
+	jsonData, _ := json.Marshal(payload)
+
+	req, _ := http.NewRequest("POST", fmt.Sprintf("http://%s:%s/api/autoconnect/disable", targetIP, targetPort), bytes.NewBuffer(jsonData))
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil || resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("failed to disable on remote device")
+	}
+	return nil
+}
+
 func (c *AndroidClient) startHeartbeatLoop(targetIP string, targetPort string) {
 	for {
 		time.Sleep(5 * time.Second)

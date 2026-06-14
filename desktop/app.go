@@ -81,6 +81,20 @@ func (a *App) RequestConnection(ip string, port string) (models.ConnectionRespon
 	return a.androidClient.RequestConnection(ip, port, cfg.DeviceID, cfg.DeviceName)
 }
 
+func (a *App) RequestAutoConnect(ip string) error {
+	cfg := config.Load()
+	return a.androidClient.RequestAutoConnect(ip, "34931", cfg.DeviceID, cfg.DeviceName)
+}
+
+func (a *App) ResolveAutoConnect(ip string, accept bool) {
+	a.desktopServer.ResolveAutoConnect(ip, accept)
+}
+
+func (a *App) DisableAutoConnect(ip string) error {
+	cfg := config.Load()
+	return a.androidClient.DisableAutoConnect(ip, "34931", cfg.DeviceID, cfg.DeviceName)
+}
+
 func (a *App) AcceptConnection(ip string) { a.desktopServer.ResolveConnection(ip, true) }
 func (a *App) RejectConnection(ip string) { a.desktopServer.ResolveConnection(ip, false) }
 func (a *App) GetDeviceID() string        { return config.Load().DeviceID }

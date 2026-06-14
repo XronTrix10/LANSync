@@ -64,12 +64,13 @@ func (cr *ctxReader) Read(p []byte) (int, error) {
 // ────────────────────────────────────────────────────────────
 
 type DesktopServer struct {
-	ctx              context.Context
-	sessionManager   *auth.SessionManager
-	clipboardManager *clipboard.ClipboardManager
-	pendingRequests  map[string]chan bool
-	SharedDir        string
-	mu               sync.Mutex
+	ctx                context.Context
+	sessionManager     *auth.SessionManager
+	clipboardManager   *clipboard.ClipboardManager
+	pendingAutoConnect map[string]chan bool
+	pendingRequests    map[string]chan bool
+	SharedDir          string
+	mu                 sync.Mutex
 }
 
 func NewDesktopServer(sm *auth.SessionManager, cm *clipboard.ClipboardManager) *DesktopServer {
@@ -85,10 +86,11 @@ func NewDesktopServer(sm *auth.SessionManager, cm *clipboard.ClipboardManager) *
 	}
 
 	return &DesktopServer{
-		sessionManager:   sm,
-		clipboardManager: cm,
-		pendingRequests:  make(map[string]chan bool),
-		SharedDir:        startupDir,
+		sessionManager:     sm,
+		clipboardManager:   cm,
+		pendingAutoConnect: make(map[string]chan bool),
+		pendingRequests:    make(map[string]chan bool),
+		SharedDir:          startupDir,
 	}
 }
 
@@ -109,8 +111,8 @@ func (s *DesktopServer) Start(port string) {
 	mux.HandleFunc("/api/files/mkdir", s.authMiddleware(s.handleMkdir))
 	mux.HandleFunc("/api/clipboard/share", s.authMiddleware(s.handleClipboardShare))
 	mux.HandleFunc("/api/disconnect", s.authMiddleware(s.handleDisconnect))
-
-	// ── THE KILL SWITCH ROUTE ──
+	mux.HandleFunc("/api/autoconnect", s.authMiddleware(s.handleAutoConnectRequest))
+	mux.HandleFunc("/api/autoconnect/disable", s.authMiddleware(s.handleDisableAutoConnect))
 	mux.HandleFunc("/api/files/cancel", s.authMiddleware(s.handleCancel))
 
 	http.ListenAndServe(":"+port, mux)
@@ -223,6 +225,57 @@ func (s *DesktopServer) handleConnect(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	delete(s.pendingRequests, clientIP)
 	s.mu.Unlock()
+}
+
+func (s *DesktopServer) handleAutoConnectRequest(w http.ResponseWriter, r *http.Request) {
+	var req models.AutoConnectPayload
+	json.NewDecoder(r.Body).Decode(&req)
+
+	clientIP, _, _ := net.SplitHostPort(r.RemoteAddr)
+	clientIP = strings.TrimPrefix(clientIP, "::ffff:")
+	if clientIP == "::1" {
+		clientIP = "127.0.0.1"
+	}
+	req.IP = clientIP
+
+	decisionChan := make(chan bool)
+	s.mu.Lock()
+	s.pendingAutoConnect[clientIP] = decisionChan
+	s.mu.Unlock()
+
+	// Tell the React UI to show the permission modal
+	runtime.EventsEmit(s.ctx, "autoconnect_requested", req)
+
+	select {
+	case accepted := <-decisionChan:
+		if accepted {
+			w.WriteHeader(http.StatusOK)
+		} else {
+			w.WriteHeader(http.StatusForbidden)
+		}
+	case <-time.After(30 * time.Second):
+		w.WriteHeader(http.StatusRequestTimeout)
+	}
+
+	s.mu.Lock()
+	delete(s.pendingAutoConnect, clientIP)
+	s.mu.Unlock()
+}
+
+func (s *DesktopServer) ResolveAutoConnect(ip string, accept bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if ch, exists := s.pendingAutoConnect[ip]; exists {
+		ch <- accept
+	}
+}
+
+func (s *DesktopServer) handleDisableAutoConnect(w http.ResponseWriter, r *http.Request) {
+	var req models.AutoConnectPayload
+	json.NewDecoder(r.Body).Decode(&req)
+	// Tell the React UI to silently remove this device from auto-connect
+	runtime.EventsEmit(s.ctx, "autoconnect_disabled", req)
+	w.WriteHeader(http.StatusOK)
 }
 
 func (s *DesktopServer) handleDisconnect(w http.ResponseWriter, r *http.Request) {

@@ -47,6 +47,10 @@ var (
 	pendingRequests = make(map[string]chan bool)
 	prMutex         sync.Mutex
 
+	// ── Auto-Connect State ──
+	pendingAutoConnect = make(map[string]chan bool)
+	pacMutex           sync.Mutex
+
 	cbProxy *androidBridgeProxy
 )
 
@@ -86,11 +90,14 @@ func (cr *ctxReader) Read(p []byte) (int, error) {
 	}
 }
 
+// ── Updated Interface for Kotlin ──
 type BridgeCallback interface {
 	OnDeviceDropped(ip string)
 	OnClipboardDataReceived(data []byte, contentType string)
 	OnConnectionRequested(ip string, deviceName string)
 	OnDevicesDiscovered(jsonString string)
+	OnAutoConnectRequested(ip string, deviceName string, deviceId string)
+	OnAutoConnectDisabled(ip string, deviceName string, deviceId string)
 }
 
 type androidBridgeProxy struct{ cb BridgeCallback }
@@ -122,7 +129,6 @@ func StartupWithCallback(cb BridgeCallback) {
 
 	go desktopServer.Start("34932")
 
-	// ── DISCOVERY START UPDATED WITH DEVICE ID ──
 	discovery.Start(
 		func() string { return mobileDeviceID },
 		func() string { return mobileDeviceName },
@@ -133,7 +139,7 @@ func StartupWithCallback(cb BridgeCallback) {
 			if mobileLocalIP != "" {
 				return []string{mobileLocalIP}
 			}
-			return sys.GetLocalIPs() // Fallback
+			return sys.GetLocalIPs()
 		},
 		func(devices []discovery.DiscoveredDevice) {
 			if cbProxy != nil && cbProxy.cb != nil {
@@ -144,7 +150,6 @@ func StartupWithCallback(cb BridgeCallback) {
 	)
 }
 
-// ── Added Setter for Kotlin SharedPreferences UUID ──
 func SetDeviceID(id string)     { mobileDeviceID = id }
 func SetDeviceName(name string) { mobileDeviceName = name }
 
@@ -180,7 +185,23 @@ func ResolveConnection(ip string, accept bool) {
 	prMutex.Unlock()
 }
 
-// ── Returns JSON String of ConnectionResponse for Kotlin ──
+// ── New Outbound Auto-Connect Wrappers ──
+func RequestAutoConnect(ip string) error {
+	return androidClient.RequestAutoConnect(ip, "34931", mobileDeviceID, mobileDeviceName)
+}
+
+func DisableAutoConnect(ip string) error {
+	return androidClient.DisableAutoConnect(ip, "34931", mobileDeviceID, mobileDeviceName)
+}
+
+func ResolveAutoConnect(ip string, accept bool) {
+	pacMutex.Lock()
+	if ch, exists := pendingAutoConnect[ip]; exists {
+		ch <- accept
+	}
+	pacMutex.Unlock()
+}
+
 func RequestConnection(ip string, port string) (string, error) {
 	resp, err := androidClient.RequestConnection(ip, port, mobileDeviceID, mobileDeviceName)
 	if err != nil {
@@ -335,9 +356,68 @@ func StartMobileServer() {
 			prMutex.Unlock()
 		})
 
-		mux.HandleFunc("/api/ping", authMiddleware(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) }))
+		// ── New Inbound Auto-Connect Endpoints ──
+		mux.HandleFunc("/api/autoconnect", authMiddleware(func(w http.ResponseWriter, r *http.Request) {
+			var req models.AutoConnectPayload
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				http.Error(w, "Bad Request", http.StatusBadRequest)
+				return
+			}
 
-		// ... KEEP REST OF THE MOBILE SERVER HANDLERS EXACTLY THE SAME ...
+			clientIP, _, err := net.SplitHostPort(r.RemoteAddr)
+			if err != nil {
+				clientIP = r.RemoteAddr
+			}
+			clientIP = strings.TrimPrefix(clientIP, "::ffff:")
+			if clientIP == "::1" {
+				clientIP = "127.0.0.1"
+			}
+
+			decisionChan := make(chan bool)
+			pacMutex.Lock()
+			pendingAutoConnect[clientIP] = decisionChan
+			pacMutex.Unlock()
+
+			if cbProxy != nil && cbProxy.cb != nil {
+				cbProxy.cb.OnAutoConnectRequested(clientIP, req.DeviceName, req.DeviceID)
+			}
+
+			select {
+			case accepted := <-decisionChan:
+				if accepted {
+					w.WriteHeader(http.StatusOK)
+				} else {
+					w.WriteHeader(http.StatusForbidden)
+				}
+			case <-time.After(30 * time.Second):
+				w.WriteHeader(http.StatusRequestTimeout)
+			}
+
+			pacMutex.Lock()
+			delete(pendingAutoConnect, clientIP)
+			pacMutex.Unlock()
+		}))
+
+		mux.HandleFunc("/api/autoconnect/disable", authMiddleware(func(w http.ResponseWriter, r *http.Request) {
+			var req models.AutoConnectPayload
+			json.NewDecoder(r.Body).Decode(&req)
+
+			clientIP, _, err := net.SplitHostPort(r.RemoteAddr)
+			if err != nil {
+				clientIP = r.RemoteAddr
+			}
+			clientIP = strings.TrimPrefix(clientIP, "::ffff:")
+			if clientIP == "::1" {
+				clientIP = "127.0.0.1"
+			}
+
+			if cbProxy != nil && cbProxy.cb != nil {
+				cbProxy.cb.OnAutoConnectDisabled(clientIP, req.DeviceName, req.DeviceID)
+			}
+			w.WriteHeader(http.StatusOK)
+		}))
+
+		mux.HandleFunc("/api/ping", authMiddleware(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) }))
 
 		mux.HandleFunc("/api/disconnect", authMiddleware(func(w http.ResponseWriter, r *http.Request) {
 			clientIP, _, err := net.SplitHostPort(r.RemoteAddr)

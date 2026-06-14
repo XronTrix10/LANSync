@@ -41,3 +41,9 @@ type ConnectionResponse struct {
 	DeviceName string `json:"deviceName"`
 	DeviceID   string `json:"deviceId"`
 }
+
+type AutoConnectPayload struct {
+	DeviceID   string `json:"deviceId"`
+	DeviceName string `json:"deviceName"`
+	IP         string `json:"ip"`
+}
