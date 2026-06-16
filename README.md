@@ -83,9 +83,11 @@ Download the latest release for your platform from the Releases page and follow 
    - `wails dev -tags webkit2_41` for later ubuntu
 5. Build the final executable: `wails build`
    - `wails build -tags webkit2_41` for later ubuntu
+6. If make changes in go modules, run
+   - `wails generate module` to sync frontend
 
 
-> Run for Ubuntu: `sudo apt install libwebkit2gtk-4.1-0 libwebkit2gtk-4.1-dev libsoup-3.0-dev`
+> Run for Ubuntu (24+): `sudo apt install libwebkit2gtk-4.1-0 libwebkit2gtk-4.1-dev libsoup-3.0-dev`
 
 ### Building the Android App
 
@@ -111,3 +113,15 @@ Before compiling, ensure your development environment is fully set up for Androi
 ## How it Works
 
 LANSync operates on a dual-server architecture. When devices pair, they exchange temporary cryptographic bearer tokens. Both the Desktop and Mobile apps spin up lightweight Go HTTP servers (defaulting to port `34931`) to handle bidirectional streaming. The Android app leverages a custom threaded download engine to bypass OS-level HTTP restrictions, providing real-time speed and progress metrics directly in the notification tray.
+
+
+---
+
+### Cosmic DE dual titlebar fix:
+
+Update your .desktop shortcut:
+Locate your LANSync .desktop file (usually in ~/.local/share/applications/ or /usr/share/applications/) and modify the Exec line to include the variable:
+
+Ini, TOML
+Exec=env GDK_BACKEND=x11 /path/to/your/lansync
+This ensures your app stays perfectly frameless and native-looking every time you launch it directly from your application grid!
