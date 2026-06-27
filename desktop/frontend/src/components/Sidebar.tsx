@@ -14,9 +14,7 @@ import {
 import { useState } from "react";
 import type { Device, DiscoveredDevice } from "../types";
 import IPInput from "./IPInput";
-
-import ToggleOff from "../assets/toggle_off.svg";
-import ToggleOn from "../assets/toggle_on.svg";
+import { ToggleOff, ToggleOn } from "../assets";
 
 interface Props {
   localDeviceName: string;
@@ -251,11 +249,15 @@ export function Sidebar({
                         }
                       >
                         <span className="text-[9px] uppercase">Auto</span>
-                        <img
-                          src={isAutoConnectEnabled ? ToggleOn : ToggleOff}
-                          alt="Auto Sync"
-                          className={`size-4 ml-1 object-contain transition-all ${isAutoConnectEnabled ? "" : "grayscale opacity-50"}`}
-                        />
+                        <span
+                          className={`ml-1 transition-all ${isAutoConnectEnabled ? "" : "grayscale opacity-50"}`}
+                        >
+                          {isAutoConnectEnabled ? (
+                            <ToggleOn size={16} />
+                          ) : (
+                            <ToggleOff size={16} />
+                          )}
+                        </span>
                       </button>
                     </div>
                   </div>
@@ -334,11 +336,15 @@ export function Sidebar({
                           title="Auto-Connect is Active"
                         >
                           <span className="uppercase">Auto</span>
-                          <img
-                            src={ToggleOn}
-                            alt="Auto Sync"
-                            className="size-4 ml-1 object-contain"
-                          />
+                          <span
+                            className={`ml-1 transition-all ${isAutoConnectEnabled ? "" : "grayscale opacity-50"}`}
+                          >
+                            {isAutoConnectEnabled ? (
+                              <ToggleOn size={16} />
+                            ) : (
+                              <ToggleOff size={16} />
+                            )}
+                          </span>
                         </div>
                       )}
                     </div>
