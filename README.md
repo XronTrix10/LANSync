@@ -113,15 +113,3 @@ Before compiling, ensure your development environment is fully set up for Androi
 ## How it Works
 
 LANSync operates on a dual-server architecture. When devices pair, they exchange temporary cryptographic bearer tokens. Both the Desktop and Mobile apps spin up lightweight Go HTTP servers (defaulting to port `34931`) to handle bidirectional streaming. The Android app leverages a custom threaded download engine to bypass OS-level HTTP restrictions, providing real-time speed and progress metrics directly in the notification tray.
-
-
----
-
-### Cosmic DE dual titlebar fix:
-
-Update your .desktop shortcut:
-Locate your LANSync .desktop file (usually in ~/.local/share/applications/ or /usr/share/applications/) and modify the Exec line to include the variable:
-
-Ini, TOML
-Exec=env GDK_BACKEND=x11 /path/to/your/lansync
-This ensures your app stays perfectly frameless and native-looking every time you launch it directly from your application grid!

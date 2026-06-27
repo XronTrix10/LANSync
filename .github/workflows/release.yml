@@ -8,6 +8,15 @@ on:
         required: true
         default: "v1.0.0"
 
+      release_type:
+        description: "Release Type"
+        required: true
+        type: choice
+        options:
+          - release
+          - prerelease
+        default: prerelease
+
 jobs:
   build-desktop:
     name: Build Desktop (${{ matrix.artifact_name }})
@@ -19,7 +28,7 @@ jobs:
             platform: windows/amd64
             artifact_name: windows-amd64
             build_flags: "-nsis" # Generates a nice Windows installer
-          - os: macos-latest
+          - os: macos-26
             platform: darwin/amd64
             artifact_name: macos-amd64
             build_flags: ""
@@ -248,27 +257,13 @@ jobs:
         run: |
           cd artifacts/linux-amd64 && tar -czvf ../../lansync-linux-amd64.tar.gz LANSync && cd ../../
 
-      - name: Detect Release Type
-        id: release_type
-        shell: bash
-        run: |
-          VERSION="${{ github.event.inputs.version }}"
-
-          if [[ "$VERSION" =~ -(alpha|beta|rc)(\.[0-9]+)?$ ]]; then
-            echo "prerelease=true" >> $GITHUB_OUTPUT
-            echo "Detected prerelease version"
-          else
-            echo "prerelease=false" >> $GITHUB_OUTPUT
-            echo "Detected stable release"
-          fi
-
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ github.event.inputs.version }}
           name: LANSync ${{ github.event.inputs.version }}
           draft: false
-          prerelease: ${{ steps.release_type.outputs.prerelease }}
+          prerelease: ${{ github.event.inputs.release_type == 'prerelease' }}
           files: |
             artifacts/macos-amd64/lansync-macos-amd64.zip
             artifacts/macos-arm64/lansync-macos-arm64.zip
