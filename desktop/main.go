@@ -2,6 +2,7 @@ package main
 
 import (
 	"embed"
+	"os"
 	"runtime"
 
 	"github.com/wailsapp/wails/v2"
@@ -14,6 +15,11 @@ import (
 var assets embed.FS
 
 func main() {
+	// Force X11 backend on Linux to ensure frameless windows render correctly
+	if runtime.GOOS == "linux" {
+		os.Setenv("GDK_BACKEND", "x11")
+	}
+
 	// Create an instance of the app structure
 	app := NewApp()
 	isMac := runtime.GOOS == "darwin"
