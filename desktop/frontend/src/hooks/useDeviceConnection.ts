@@ -11,6 +11,7 @@ import {
   removeFromRecentDevices,
 } from "../utils/deviceUtils";
 import { sendOSNotification } from "../utils/notificationUtils";
+import { autoHandledSession } from "./useAutoConnect"; // ── Import Session Lock ──
 
 type ShowToast = (
   message: string,
@@ -47,11 +48,9 @@ export function useDeviceConnection(showToast: ShowToast) {
           "success",
         );
 
-        // ── Parse the ConnectionResponse Object ──
         const response = await RequestConnection(device.ip, device.port);
 
         if (response && response.accepted) {
-          // Properly map the returned fields to the device object
           device.deviceName = response.deviceName;
           device.deviceId = response.deviceId;
 
@@ -103,13 +102,44 @@ export function useDeviceConnection(showToast: ShowToast) {
     setPendingRequest(null);
   }, [pendingRequest]);
 
-  const onConnectionRequested = useCallback((req: ConnectionRequest) => {
-    setPendingRequest(req);
-    sendOSNotification(
-      "Connection Request",
-      `${req.deviceName} wants to connect.`,
-    );
-  }, []);
+  const onConnectionRequested = useCallback(
+    (req: ConnectionRequest) => {
+      // const recentList = pushToRecentDevices([], req); // Extract without local storage util direct
+      const savedString = localStorage.getItem("lansync_recent_devices");
+      const savedDevices: Device[] = savedString ? JSON.parse(savedString) : [];
+      const savedDevice = savedDevices.find((d) => d.deviceId === req.deviceId);
+
+      // ── INBOUND SESSION CHECK ──
+      if (
+        savedDevice &&
+        savedDevice.autoConnect &&
+        !autoHandledSession.has(req.deviceId)
+      ) {
+        autoHandledSession.add(req.deviceId);
+        AcceptConnection(req.ip);
+
+        const newDevice: Device = {
+          ...req,
+          autoConnect: savedDevice.autoConnect,
+        };
+        setDevices((prev) => {
+          if (prev.some((d) => d.ip === newDevice.ip)) return prev;
+          return [...prev, newDevice];
+        });
+        setActiveDeviceIP(newDevice.ip);
+        addRecentDevice(newDevice);
+        showToast(`Auto-connected to ${newDevice.deviceName}`, "success");
+      } else {
+        // Fallback to manual if auto is off OR we already auto-connected this session
+        setPendingRequest(req);
+        sendOSNotification(
+          "Connection Request",
+          `${req.deviceName} wants to connect.`,
+        );
+      }
+    },
+    [addRecentDevice, showToast],
+  );
 
   const onConnectionLost = useCallback(
     (ip: string) => {

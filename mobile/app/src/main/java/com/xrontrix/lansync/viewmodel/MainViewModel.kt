@@ -39,7 +39,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application), B
     val isConnecting = mutableStateOf(false)
     val activeDeviceOS = mutableStateOf("windows")
     val incomingRequest = mutableStateOf<Triple<String, String, String>?>(null)
-    val incomingAutoConnectRequest = mutableStateOf<Triple<String, String, String>?>(null) // ── Auto Connect Prompt State ──
+    val incomingAutoConnectRequest = mutableStateOf<Triple<String, String, String>?>(null)
 
     val recentDevicesState = mutableStateOf<List<RecentDevice>>(emptyList())
     val currentPath = mutableStateOf("/")
@@ -51,7 +51,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application), B
 
     private lateinit var prefsManager: PreferencesManager
     private lateinit var transferManager: FileTransferManager
-    private val connectingToIds = mutableSetOf<String>()
+
+    // ── THE IN-MEMORY SESSION LOCK ──
+    private val autoHandledSessionIds = mutableSetOf<String>()
 
     var onToggleForegroundService: ((Boolean) -> Unit)? = null
 
@@ -67,7 +69,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application), B
         Toast.makeText(context, "Device removed", Toast.LENGTH_SHORT).show()
     }
 
-    // ── 1. OUTGOING AUTO-CONNECT TOGGLE ──
     fun toggleAutoConnect(ip: String, deviceId: String, enable: Boolean) {
         Thread {
             try {
@@ -94,7 +95,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application), B
         }.start()
     }
 
-    // ── 2. RESOLVE INCOMING AUTO-CONNECT PROMPT ──
     fun resolveAutoConnect(accept: Boolean) {
         val req = incomingAutoConnectRequest.value ?: return
         Thread { Bridge.resolveAutoConnect(req.first, accept) }.start()
@@ -117,14 +117,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application), B
                 val os = identity?.second ?: "windows"
                 val deviceIdFallback = identity?.third ?: ""
 
-                // This returns a JSON string of models.ConnectionResponse
                 val responseJsonStr = Bridge.requestConnection(ip, "34931")
 
                 runOnUiThread {
                     isConnecting.value = false
                     if (responseJsonStr.isNotEmpty()) {
-
-                        // ── Parse the JSON string from Gomobile ──
                         val json = JSONObject(responseJsonStr)
                         val connectedDeviceName = json.optString("deviceName", "Unknown Device")
                         val deviceId = json.optString("deviceId", deviceIdFallback)
@@ -171,25 +168,29 @@ class MainViewModel(application: Application) : AndroidViewModel(application), B
         } catch (_: Exception) { null }
     }
 
-    // ── 3. INBOUND AUTO-ACCEPT CONNECTION ──
     override fun onConnectionRequested(ip: String?, deviceName: String?) {
         if (ip == null || deviceName == null) return
 
-        // Check if we trust them for auto-accept
         val savedDevice = prefsManager.getRecentDevices().find { it.ip == ip || it.name == deviceName }
+
+        // ── INBOUND SESSION CHECK ──
         if (savedDevice != null && savedDevice.autoConnect) {
-            runOnUiThread {
-                Bridge.resolveConnection(ip, true)
-                activeDeviceIP.value = ip
-                activeDeviceOS.value = savedDevice.os
-                prefsManager.saveRecentDevice(ip, deviceName, savedDevice.os, savedDevice.deviceId, true)
-                recentDevicesState.value = prefsManager.getRecentDevices()
-                onToggleForegroundService?.invoke(true)
-                Toast.makeText(context, "Auto-connected to $deviceName", Toast.LENGTH_SHORT).show()
+            if (!autoHandledSessionIds.contains(savedDevice.deviceId)) {
+                autoHandledSessionIds.add(savedDevice.deviceId) // Lock it
+                runOnUiThread {
+                    Bridge.resolveConnection(ip, true)
+                    activeDeviceIP.value = ip
+                    activeDeviceOS.value = savedDevice.os
+                    prefsManager.saveRecentDevice(ip, deviceName, savedDevice.os, savedDevice.deviceId, true)
+                    recentDevicesState.value = prefsManager.getRecentDevices()
+                    onToggleForegroundService?.invoke(true)
+                    Toast.makeText(context, "Auto-connected to $deviceName", Toast.LENGTH_SHORT).show()
+                }
+                return
             }
-            return
         }
 
+        // ── FALLBACK TO MANUAL PROMPT ──
         Thread {
             val identity = fetchDeviceIdentity(ip)
             val os = identity?.second ?: "windows"
@@ -197,7 +198,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application), B
         }.start()
     }
 
-    // ── 4. LEADER ELECTION (OUTBOUND AUTO-CONNECT) ──
     override fun onDevicesDiscovered(jsonString: String?) {
         if (jsonString == null) return
         Thread {
@@ -213,12 +213,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application), B
                         deviceId = obj.optString("deviceId", "")
                     ))
                 }
-
                 val myIPs = currentLocalIP.value ?: ""
-                val myId = prefsManager.getLocalDeviceId() // ── Fetch Local ID ──
+                val myId = prefsManager.getLocalDeviceId()
 
                 val filteredDevs = devs.filter {
-                    it.deviceId != myId && // ── Primary ID Check ──
+                    it.deviceId != myId &&
                             it.ip != myIPs &&
                             it.ip != "127.0.0.1" &&
                             !it.ip.startsWith("192.0.0.")
@@ -226,18 +225,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application), B
 
                 runOnUiThread { discoveredDevices.value = filteredDevs }
 
-                // The Tie-Breaker Logic
                 if (activeDeviceIP.value == null) {
-                    val myId = prefsManager.getLocalDeviceId()
                     val recentList = prefsManager.getRecentDevices()
 
                     filteredDevs.forEach { availableDevice ->
                         val savedDevice = recentList.find { it.deviceId == availableDevice.deviceId }
                         if (savedDevice != null && savedDevice.autoConnect) {
-                            if (myId > availableDevice.deviceId && !connectingToIds.contains(availableDevice.deviceId)) {
-                                connectingToIds.add(availableDevice.deviceId)
-                                connectToDevice(availableDevice.ip) {
-                                    connectingToIds.remove(availableDevice.deviceId)
+                            if (myId > availableDevice.deviceId) {
+                                // ── OUTBOUND SESSION CHECK ──
+                                if (!autoHandledSessionIds.contains(availableDevice.deviceId)) {
+                                    autoHandledSessionIds.add(availableDevice.deviceId) // Lock it
+                                    connectToDevice(availableDevice.ip) { }
                                 }
                             }
                         }
@@ -261,7 +259,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application), B
         }
     }
 
-    // Keep remaining methods (fetchRemoteFiles, upload, download, acceptIncomingConnection, etc) exactly as they were!
     fun acceptIncomingConnection() {
         val req = incomingRequest.value ?: return
         Bridge.resolveConnection(req.first, true)
@@ -279,12 +276,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application), B
         incomingRequest.value = null
     }
 
-    fun fetchRemoteFiles(ip: String, path: String) { /* Keep as is */ }
-    fun shareMobileTextWithDesktop(targetIP: String) { /* Keep as is */ }
-    fun createRemoteFolder(ip: String, currentPath: String, folderName: String) { /* Keep as is */ }
-    fun uploadFiles(ip: String, path: String, uris: List<Uri>) { /* Keep as is */ }
-    fun uploadFolder(ip: String, path: String, treeUri: Uri) { /* Keep as is */ }
-    fun downloadFiles(ip: String, selectedFiles: List<FileInfo>) { /* Keep as is */ }
-    override fun onDeviceDropped(ip: String?) { /* Keep as is */ }
-    override fun onClipboardDataReceived(data: ByteArray?, contentType: String?) { /* Keep as is */ }
+    fun fetchRemoteFiles(ip: String, path: String) { /* ... */ }
+    fun shareMobileTextWithDesktop(targetIP: String) { /* ... */ }
+    fun createRemoteFolder(ip: String, currentPath: String, folderName: String) { /* ... */ }
+    fun uploadFiles(ip: String, path: String, uris: List<Uri>) { /* ... */ }
+    fun uploadFolder(ip: String, path: String, treeUri: Uri) { /* ... */ }
+    fun downloadFiles(ip: String, selectedFiles: List<FileInfo>) { /* ... */ }
+    override fun onDeviceDropped(ip: String?) { /* ... */ }
+    override fun onClipboardDataReceived(data: ByteArray?, contentType: String?) { /* ... */ }
 }

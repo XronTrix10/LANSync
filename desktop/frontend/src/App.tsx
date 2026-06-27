@@ -28,7 +28,7 @@ import { useToasts } from "./hooks/useToasts";
 import { AutoConnectPromptModal } from "./components/modals/AutoConnectPromptModal";
 import { ConnectionRequestModal } from "./components/modals/ConnectionRequestModal";
 import { SettingsModal } from "./components/modals/SettingsModal";
-import type { DiscoveredDevice, TransferProgress } from "./types";
+import type { Device, DiscoveredDevice, TransferProgress } from "./types";
 import { loadRecentDevices, toggleAutoConnect } from "./utils/deviceUtils";
 
 export default function App() {
@@ -53,6 +53,7 @@ export default function App() {
 
   const {
     devices,
+    setDevices,
     activeDeviceIP,
     setActiveDeviceIP,
     newDeviceIP,
@@ -97,7 +98,13 @@ export default function App() {
   const loading = connectionLoading || fileLoading;
 
   useAutoConnect(discoveredDevices, (device) => {
+    // ── Silently add the auto-connected device to the sidebar ──
+    setDevices((prev) => {
+      if (prev.some((d) => d.ip === device.ip)) return prev;
+      return [...prev, { ...device, port: "34931", type: "desktop" } as Device];
+    });
     setActiveDeviceIP(device.ip);
+    showToast(`Auto-connected to ${device.deviceName}`, "success");
   });
 
   const handleToggleAutoConnect = async (
