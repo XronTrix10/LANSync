@@ -34,7 +34,7 @@ interface Props {
   onRemoveRecent: (ip: string) => void;
   setShowSettings: (show: boolean) => void;
   onRefresh: () => void;
-  onToggleAutoConnect: (ip: string, deviceId: string, enable: boolean) => void; // ── Requires IP now ──
+  onToggleAutoConnect: (ip: string, deviceId: string, enable: boolean) => void;
 }
 
 // ── Icons ───────────────────────────────────────────────────────────────────
@@ -181,6 +181,13 @@ export function Sidebar({
           <div className="flex flex-col gap-1">
             {devices.map((device) => {
               const isActive = activeDeviceIP === device.ip;
+
+              // ── SINGLE SOURCE OF TRUTH: Get actual state from history cache ──
+              const savedInstance = recentDevices.find(
+                (rd) => rd.deviceId === device.deviceId,
+              );
+              const isAutoConnectEnabled = !!savedInstance?.autoConnect;
+
               return (
                 <button
                   key={device.ip}
@@ -222,32 +229,32 @@ export function Sidebar({
                         {device.ip.split(":")[0]}
                       </p>
 
-                      {/* ── Interactive Connected Toggle (Both Enable & Disable) ── */}
+                      {/* ── Interactive Connected Toggle using Single Source of Truth ── */}
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           onToggleAutoConnect(
                             device.ip,
                             device.deviceId,
-                            !device.autoConnect,
+                            !isAutoConnectEnabled,
                           );
                         }}
                         className={`flex items-center text-[8px] font-bold shrink-0 cursor-pointer transition-all ${
-                          device.autoConnect
+                          isAutoConnectEnabled
                             ? "text-emerald-500 opacity-100"
                             : "text-dull opacity-30 hover:opacity-100"
                         }`}
                         title={
-                          device.autoConnect
+                          isAutoConnectEnabled
                             ? "Disable Auto-Connect"
                             : "Enable Auto-Connect"
                         }
                       >
                         <span className="text-[9px] uppercase">Auto</span>
                         <img
-                          src={device.autoConnect ? ToggleOn : ToggleOff}
+                          src={isAutoConnectEnabled ? ToggleOn : ToggleOff}
                           alt="Auto Sync"
-                          className={`size-4 ml-1 object-contain transition-all ${device.autoConnect ? "" : "grayscale opacity-50"}`}
+                          className={`size-4 ml-1 object-contain transition-all ${isAutoConnectEnabled ? "" : "grayscale opacity-50"}`}
                         />
                       </button>
                     </div>
