@@ -60,12 +60,17 @@ func (cr *ctxReader) Read(p []byte) (int, error) {
 }
 
 type AndroidClient struct {
-	ctx            context.Context
-	sessionManager *auth.SessionManager
+	ctx              context.Context
+	sessionManager   *auth.SessionManager
+	OnConnectionDrop func(ip string)
 }
 
 func NewAndroidClient(ctx context.Context, sm *auth.SessionManager) *AndroidClient {
 	return &AndroidClient{ctx: ctx, sessionManager: sm}
+}
+
+func (c *AndroidClient) SetDropCallback(cb func(string)) {
+	c.OnConnectionDrop = cb
 }
 
 func (c *AndroidClient) IdentifyDevice(inputIP string) (models.DeviceIdentity, error) {
@@ -201,7 +206,20 @@ func (c *AndroidClient) startHeartbeatLoop(targetIP string, targetPort string) {
 		req, _ := http.NewRequest("GET", fmt.Sprintf("http://%s:%s/api/ping", targetIP, targetPort), nil)
 		req.Header.Set("Authorization", "Bearer "+token)
 		client := http.Client{Timeout: 3 * time.Second}
-		client.Do(req)
+
+		resp, err := client.Do(req)
+		if err != nil || resp.StatusCode != http.StatusOK {
+			c.sessionManager.RemoveSession(targetIP)
+			CancelClientTransfersForIP(targetIP)
+
+			if c.OnConnectionDrop != nil {
+				c.OnConnectionDrop(targetIP) // Mobile callback
+			} else {
+				runtime.EventsEmit(c.ctx, "connection_lost", targetIP) // Desktop fallback
+			}
+			return
+		}
+		resp.Body.Close()
 	}
 }
 

@@ -204,7 +204,15 @@ func (s *DesktopServer) handleConnect(w http.ResponseWriter, r *http.Request) {
 					pingReq, _ := http.NewRequest("GET", fmt.Sprintf("http://%s:%s/api/ping", ip, port), nil)
 					pingReq.Header.Set("Authorization", "Bearer "+token)
 					client := http.Client{Timeout: 3 * time.Second}
-					client.Do(pingReq)
+
+					resp, err := client.Do(pingReq)
+					if err != nil || resp.StatusCode != http.StatusOK {
+						s.sessionManager.RemoveSession(ip)
+						CancelTransfersForIP(ip)
+						runtime.EventsEmit(s.ctx, "connection_lost", ip)
+						break
+					}
+					resp.Body.Close()
 				}
 			}(clientIP, req.Port, req.TokenForB)
 

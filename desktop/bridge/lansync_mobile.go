@@ -124,6 +124,13 @@ func StartupWithCallback(cb BridgeCallback) {
 	clipboardManager.SetAndroidCallback(cbProxy)
 
 	androidClient = client.NewAndroidClient(ctx, sessionManager)
+	androidClient.SetDropCallback(func(ip string) {
+		cancelTransfersForIP(ip)
+		if cbProxy != nil && cbProxy.cb != nil {
+			cbProxy.cb.OnDeviceDropped(ip)
+		}
+	})
+
 	desktopServer = server.NewDesktopServer(sessionManager, clipboardManager)
 	desktopServer.SetContext(ctx)
 
@@ -335,6 +342,7 @@ func StartMobileServer() {
 								}
 								break
 							}
+							resp.Body.Close()
 						}
 					}(clientIP, req.Port, req.TokenForB)
 

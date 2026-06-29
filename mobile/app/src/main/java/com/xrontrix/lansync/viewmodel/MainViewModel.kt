@@ -276,12 +276,113 @@ class MainViewModel(application: Application) : AndroidViewModel(application), B
         incomingRequest.value = null
     }
 
-    fun fetchRemoteFiles(ip: String, path: String) { /* ... */ }
-    fun shareMobileTextWithDesktop(targetIP: String) { /* ... */ }
-    fun createRemoteFolder(ip: String, currentPath: String, folderName: String) { /* ... */ }
-    fun uploadFiles(ip: String, path: String, uris: List<Uri>) { /* ... */ }
-    fun uploadFolder(ip: String, path: String, treeUri: Uri) { /* ... */ }
-    fun downloadFiles(ip: String, selectedFiles: List<FileInfo>) { /* ... */ }
-    override fun onDeviceDropped(ip: String?) { /* ... */ }
-    override fun onClipboardDataReceived(data: ByteArray?, contentType: String?) { /* ... */ }
+    fun fetchRemoteFiles(ip: String, path: String) {
+        isLoadingFiles.value = true
+        Thread {
+            try {
+                val jsonString = Bridge.getRemoteFilesJson(ip, "34931", path)
+                val jsonObject = JSONObject(jsonString)
+                val newCurrentPath = jsonObject.optString("path", "/")
+                val newParentPath = jsonObject.optString("parent", "")
+                val filesArray: JSONArray? = jsonObject.optJSONArray("files")
+
+                val parsedFiles = mutableListOf<FileInfo>()
+                if (filesArray != null) {
+                    for (i in 0 until filesArray.length()) {
+                        val f = filesArray.getJSONObject(i)
+                        parsedFiles.add(
+                            FileInfo(
+                                name = f.getString("name"),
+                                path = f.getString("path"),
+                                size = f.optLong("size", 0),
+                                isDir = f.getBoolean("isDir")
+                            )
+                        )
+                    }
+                }
+                runOnUiThread {
+                    currentPath.value = newCurrentPath
+                    parentPath.value = newParentPath
+                    remoteFiles.value = parsedFiles
+                    isLoadingFiles.value = false
+                }
+            } catch (e: Exception) {
+                runOnUiThread {
+                    Toast.makeText(context, "Failed to load files: ${e.message}", Toast.LENGTH_SHORT).show()
+                    isLoadingFiles.value = false
+                }
+            }
+        }.start()
+    }
+
+    fun shareMobileTextWithDesktop(targetIP: String) {
+        val clipboardManager = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+        if (!clipboardManager.hasPrimaryClip() || clipboardManager.primaryClip?.getItemAt(0)?.text == null) {
+            runOnUiThread { Toast.makeText(context, "Mobile clipboard is empty", Toast.LENGTH_SHORT).show() }
+            return
+        }
+        val text = clipboardManager.primaryClip!!.getItemAt(0).text.toString()
+        Thread {
+            try {
+                Bridge.shareMobileClipboard(targetIP, "34931", text.toByteArray(Charsets.UTF_8), "text/plain")
+                runOnUiThread { Toast.makeText(context, "Sent to Device!", Toast.LENGTH_SHORT).show() }
+            } catch (e: Exception) {
+                runOnUiThread { Toast.makeText(context, "Share failed: ${e.message}", Toast.LENGTH_LONG).show() }
+            }
+        }.start()
+    }
+
+    fun createRemoteFolder(ip: String, currentPath: String, folderName: String) {
+        Thread {
+            try {
+                Bridge.makeDirectory(ip, "34931", currentPath, folderName)
+                runOnUiThread {
+                    Toast.makeText(context, "Folder created!", Toast.LENGTH_SHORT).show()
+                    fetchRemoteFiles(ip, currentPath)
+                }
+            } catch (e: Exception) {
+                runOnUiThread { Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_SHORT).show() }
+            }
+        }.start()
+    }
+
+    fun uploadFiles(ip: String, path: String, uris: List<Uri>) {
+        isLoadingFiles.value = true
+        transferManager.uploadFiles(ip, path, uris) {
+            fetchRemoteFiles(ip, path)
+        }
+    }
+
+    fun uploadFolder(ip: String, path: String, treeUri: Uri) {
+        isLoadingFiles.value = true
+        transferManager.uploadFolder(ip, path, treeUri,
+            onComplete = { fetchRemoteFiles(ip, path) },
+            onError = { isLoadingFiles.value = false }
+        )
+    }
+
+    fun downloadFiles(ip: String, selectedFiles: List<FileInfo>) {
+        transferManager.downloadFiles(ip, selectedFiles)
+    }
+
+    override fun onDeviceDropped(ip: String?) {
+        runOnUiThread {
+            if (activeDeviceIP.value == ip) {
+                activeDeviceIP.value = null
+                onToggleForegroundService?.invoke(false)
+            }
+            Toast.makeText(context, "Device disconnected: $ip", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    override fun onClipboardDataReceived(data: ByteArray?, contentType: String?) {
+        if (data != null && contentType?.startsWith("text/") == true) {
+            val text = String(data, Charsets.UTF_8)
+            val clipboardManager = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            runOnUiThread {
+                clipboardManager.setPrimaryClip(android.content.ClipData.newPlainText("LANSync", text))
+                Toast.makeText(context, "Device text copied!", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
 }
