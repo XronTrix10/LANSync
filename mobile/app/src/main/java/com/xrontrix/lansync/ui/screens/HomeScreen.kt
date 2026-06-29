@@ -20,7 +20,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.*
@@ -60,10 +59,12 @@ fun HomeScreen(
 ) {
     val focusRequesters = remember { List(4) { FocusRequester() } }
     var ipSegments by remember { mutableStateOf(listOf("", "", "", "")) }
+
     // Reset IP fields whenever a successful connection fires from ViewModel
     LaunchedEffect(clearIPInputTrigger) {
         if (clearIPInputTrigger > 0) ipSegments = listOf("", "", "", "")
     }
+
     val isIpComplete = ipSegments.all { it.isNotEmpty() }
     val fullIp = ipSegments.joinToString(".")
 
@@ -147,12 +148,12 @@ fun HomeScreen(
             }
         } else {
             // ── AVAILABLE DEVICES ──
-            val availableToConnect = discoveredDevices.filter { d -> 
+            val availableToConnect = discoveredDevices.filter { d ->
                 val connectedName = activeDeviceIP?.let { ip -> recentDevices.find { it.ip == ip }?.name } ?: "Connected Device"
                 d.ip != localIP && d.ip != activeDeviceIP && d.deviceName != connectedName
             }
             Text("AVAILABLE DEVICES", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = TextMuted, letterSpacing = 1.sp, modifier = Modifier.align(Alignment.Start).padding(start = 4.dp, bottom = 8.dp))
-            
+
             if (availableToConnect.isEmpty()) {
                 val infiniteTransitionLoader = rememberInfiniteTransition(label = "loader")
                 val rotation by infiniteTransitionLoader.animateFloat(
@@ -162,9 +163,9 @@ fun HomeScreen(
                 )
                 Row(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp, start = 4.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        painter = painterResource(R.drawable.refresh), 
-                        contentDescription = "Looking", 
-                        tint = Accent, 
+                        painter = painterResource(R.drawable.refresh),
+                        contentDescription = "Looking",
+                        tint = Accent,
                         modifier = Modifier.size(16.dp).graphicsLayer { rotationZ = rotation }.alpha(0.8f)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
@@ -201,90 +202,79 @@ fun HomeScreen(
             val focusStates = remember { mutableStateListOf(false, false, false, false) }
             val isAnyFocused = focusStates.any { it }
 
-            Card(
-                colors = CardDefaults.cardColors(containerColor = Panel),
-                border = BorderStroke(1.dp, Surface),
-                modifier = Modifier.fillMaxWidth()
+            // ─── BEAUTIFUL SINGLE-BOX 4-PART IP INPUT ───
+            Surface(
+                color = Panel,
+                shape = RoundedCornerShape(12.dp),
+                // ── Show border if ANY field is focused OR if the IP is complete ──
+                border = BorderStroke(1.dp, if (isAnyFocused || isIpComplete) Accent else Surface),
+                modifier = Modifier.fillMaxWidth().height(55.dp)
             ) {
-                Column(modifier = Modifier.fillMaxWidth().padding(20.dp)) {
-                    Text("Connect to Device", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // ─── BEAUTIFUL SINGLE-BOX 4-PART IP INPUT ───
-                    Surface(
-                        color = BgBase,
-                        shape = RoundedCornerShape(10.dp),
-                        // ── Show border if ANY field is focused OR if the IP is complete ──
-                        border = BorderStroke(1.dp, if (isAnyFocused || isIpComplete) Accent else Surface),
-                        modifier = Modifier.fillMaxWidth().height(55.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxSize(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center
-                        ) {
-                            ipSegments.forEachIndexed { index, segment ->
-                                BasicTextField(
-                                    value = segment,
-                                    onValueChange = { newVal ->
-                                        if (newVal.endsWith(".")) {
-                                            if (index < 3 && segment.isNotEmpty()) focusRequesters[index + 1].requestFocus()
-                                        } else {
-                                            val digits = newVal.filter { it.isDigit() }
-                                            if (digits.length <= 3 && (digits.isEmpty() || digits.toInt() in 0..255)) {
-                                                val newList = ipSegments.toMutableList()
-                                                newList[index] = digits
-                                                ipSegments = newList
-                                                if (digits.length == 3 && index < 3) focusRequesters[index + 1].requestFocus()
-                                            }
-                                        }
-                                    },
-                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                    singleLine = true,
-                                    cursorBrush = SolidColor(Accent),
-                                    textStyle = TextStyle(
-                                        color = TextPrimary, fontSize = 18.sp,
-                                        fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold,
-                                        textAlign = TextAlign.Center
-                                    ),
-                                    modifier = Modifier
-                                        .width(48.dp)
-                                        .focusRequester(focusRequesters[index])
-                                        .onFocusChanged { focusState ->
-                                            focusStates[index] = focusState.isFocused
-                                        }
-                                        .onKeyEvent { event ->
-                                            if (event.key == Key.Backspace && event.type == KeyEventType.KeyDown && segment.isEmpty() && index > 0) {
-                                                focusRequesters[index - 1].requestFocus()
-                                                true
-                                            } else false
-                                        }
-                                )
-                                if (index < 3) {
-                                    Text(".", color = TextMuted.copy(alpha = 0.5f), fontSize = 24.sp, fontWeight = FontWeight.Black, modifier = Modifier.padding(bottom = 6.dp))
+                Row(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    ipSegments.forEachIndexed { index, segment ->
+                        BasicTextField(
+                            value = segment,
+                            onValueChange = { newVal ->
+                                if (newVal.endsWith(".")) {
+                                    if (index < 3 && segment.isNotEmpty()) focusRequesters[index + 1].requestFocus()
+                                } else {
+                                    val digits = newVal.filter { it.isDigit() }
+                                    if (digits.length <= 3 && (digits.isEmpty() || digits.toInt() in 0..255)) {
+                                        val newList = ipSegments.toMutableList()
+                                        newList[index] = digits
+                                        ipSegments = newList
+                                        if (digits.length == 3 && index < 3) focusRequesters[index + 1].requestFocus()
+                                    }
                                 }
-                            }
+                            },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            cursorBrush = SolidColor(Accent),
+                            textStyle = TextStyle(
+                                color = TextPrimary, fontSize = 18.sp,
+                                fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center
+                            ),
+                            modifier = Modifier
+                                .width(48.dp)
+                                .focusRequester(focusRequesters[index])
+                                .onFocusChanged { focusState ->
+                                    focusStates[index] = focusState.isFocused
+                                }
+                                .onKeyEvent { event ->
+                                    if (event.key == Key.Backspace && event.type == KeyEventType.KeyDown && segment.isEmpty() && index > 0) {
+                                        focusRequesters[index - 1].requestFocus()
+                                        true
+                                    } else false
+                                }
+                        )
+                        if (index < 3) {
+                            Text(".", color = TextMuted.copy(alpha = 0.5f), fontSize = 24.sp, fontWeight = FontWeight.Black, modifier = Modifier.padding(bottom = 6.dp))
                         }
                     }
+                }
+            }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-                    Button(
-                        onClick = {
-                            onConnect(fullIp)
-                        },
-                        enabled = isIpComplete && !isConnecting,
-                        colors = ButtonDefaults.buttonColors(containerColor = Accent.copy(alpha = 0.15f), contentColor = Accent),
-                        modifier = Modifier.fillMaxWidth().height(50.dp), shape = RoundedCornerShape(10.dp)
-                    ) {
-                        if (isConnecting) {
-                            CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Accent, strokeWidth = 2.dp)
-                        } else {
-                            Icon(painter = painterResource(R.drawable.connect), contentDescription = "Connect", modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Connect", fontWeight = FontWeight.Bold)
-                        }
-                    }
+            Button(
+                onClick = {
+                    onConnect(fullIp)
+                },
+                enabled = isIpComplete && !isConnecting,
+                colors = ButtonDefaults.buttonColors(containerColor = Accent.copy(alpha = 0.15f), contentColor = Accent),
+                modifier = Modifier.fillMaxWidth().height(50.dp), shape = RoundedCornerShape(12.dp)
+            ) {
+                if (isConnecting) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Accent, strokeWidth = 2.dp)
+                } else {
+                    Icon(painter = painterResource(R.drawable.connect), contentDescription = "Connect", modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Connect", fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -385,9 +375,9 @@ fun HomeScreen(
                 }
             }
 
-            val filteredRecent = recentDevices.filter { d -> 
+            val filteredRecent = recentDevices.filter { d ->
                 val connectedName = activeDeviceIP?.let { ip -> recentDevices.find { it.ip == ip }?.name } ?: "Connected Device"
-                d.ip != activeDeviceIP && d.name != connectedName 
+                d.ip != activeDeviceIP && d.name != connectedName
             }
             if (filteredRecent.isNotEmpty()) {
                 Text("RECENT DEVICES", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = TextMuted, letterSpacing = 1.sp, modifier = Modifier.padding(start = 4.dp, bottom = 8.dp))
